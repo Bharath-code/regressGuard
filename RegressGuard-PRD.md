@@ -1075,7 +1075,7 @@ Default status for all v1 tasks below: NOT STARTED.
 
 | Epic | User Outcome | PRD Source | Launch Priority | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | NOT STARTED |
+| E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | DONE |
 | E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | NOT STARTED |
 | E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | NOT STARTED |
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | NOT STARTED |
@@ -1098,14 +1098,14 @@ Goal: RegressGuard feels trustworthy before it detects a single regression. Help
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E1-T1 | Scaffold Go CLI | rg binary builds locally; rg exits 0 for help/version; project uses Go 1.22+ | build command output | NOT STARTED |
-| E1-T2 | Command tree | rg, rg init, rg snapshot, rg check, rg hook, rg config, rg doctor, rg version exist | rg --help output | NOT STARTED |
-| E1-T3 | Progressive help | rg --help is compact; command-level --help includes usage, examples, flags, exit codes | captured help output at 80 columns | NOT STARTED |
-| E1-T4 | Output contract | --json writes valid JSON only to stdout; progress/diagnostics go to stderr; colors disabled in non-TTY | jq parse proof, stdout/stderr capture | NOT STARTED |
-| E1-T5 | Design system tokens | Centralized colors, symbols, spacing, and width rules exist; NO_COLOR respected | code review + NO_COLOR output | NOT STARTED |
-| E1-T6 | Actionable errors | Missing config/snapshot/server/test command errors include cause and copy-pasteable next command | error fixture outputs | NOT STARTED |
-| E1-T7 | Version metadata | rg version prints version, commit, build date, OS, architecture | rg version output | NOT STARTED |
-| E1-T8 | Shell completions | zsh, bash, fish completions can be generated or installed | completion command output | NOT STARTED |
+| E1-T1 | Scaffold Go CLI | rg binary builds locally; rg exits 0 for help/version; project uses Go 1.22+ | `PATH="/opt/homebrew/bin:$PATH" go build -o bin/rg ./cmd/rg`; `./bin/rg` exit 0; `./bin/rg --help` exit 0; `./bin/rg version` exit 0; `go test ./...` pass | DONE |
+| E1-T2 | Command tree | rg, rg init, rg snapshot, rg check, rg hook, rg config, rg doctor, rg version exist | `./bin/rg <command> --help` exits 0 for root, init, snapshot, check, hook, config, doctor, version; hook/config group help lists subcommands | DONE |
+| E1-T3 | Progressive help | rg --help is compact; command-level --help includes usage, examples, flags, exit codes | `go test ./...` pass; `./bin/rg --help` compact; all command help max width <= 63 columns | DONE |
+| E1-T4 | Output contract | --json writes valid JSON only to stdout; progress/diagnostics go to stderr; colors disabled in non-TTY | `./bin/rg check --json --verbose` stdout parses with `jq`; verbose INFO appears only on stderr; `go test ./...` pass | DONE |
+| E1-T5 | Design system tokens | Centralized colors, symbols, spacing, and width rules exist; NO_COLOR respected | `internal/ui` defines symbols/colors/MaxWidth; color precedence tests pass; `NO_COLOR=1 ./bin/rg --help` has no ANSI | DONE |
+| E1-T6 | Actionable errors | Missing config/snapshot/server/test command errors include cause and copy-pasteable next command | `./bin/rg check` missing snapshot exits 2 with cause + `rg snapshot`; `./bin/rg snapshot` missing config exits 2 with cause + `rg init`; `./bin/rg check --json` parses with `jq` | DONE |
+| E1-T7 | Version metadata | rg version prints version, commit, build date, OS, architecture | `go build -ldflags "-X main.version=0.1.0 -X main.commit=$(git rev-parse --short HEAD) -X main.date=2026-05-19"`; `./bin/rg version` prints version, commit, build date, darwin/arm64 | DONE |
+| E1-T8 | Shell completions | zsh, bash, fish completions can be generated or installed | `./bin/rg completion zsh|bash|fish` all exit 0 and generate scripts; completion help max width 63 columns | DONE |
 
 ## **11.5 Epic E2: Project Init**
 
