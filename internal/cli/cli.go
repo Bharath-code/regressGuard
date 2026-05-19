@@ -10,6 +10,7 @@ import (
 
 	"github.com/regressguard/regressguard/internal/checkrun"
 	"github.com/regressguard/regressguard/internal/failures"
+	"github.com/regressguard/regressguard/internal/hookrun"
 	"github.com/regressguard/regressguard/internal/initrun"
 	"github.com/regressguard/regressguard/internal/snapshotrun"
 	"github.com/regressguard/regressguard/internal/ui"
@@ -183,8 +184,31 @@ func newHookCommand() *cobra.Command {
 		},
 	}
 	cmd.SetHelpTemplate(groupHelpTemplate("rg hook install"))
-	cmd.AddCommand(stubCommand("install", "Install the pre-commit hook", "rg hook install"))
-	cmd.AddCommand(stubCommand("uninstall", "Remove the RegressGuard hook block", "rg hook uninstall"))
+	cmd.AddCommand(newHookInstallCommand())
+	cmd.AddCommand(newHookUninstallCommand())
+	return cmd
+}
+
+func newHookInstallCommand() *cobra.Command {
+	cmd := stubCommand("install", "Install the pre-commit hook", "rg hook install")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		_, err := hookrun.Install(hookrun.InstallOptions{
+			Stdout: cmd.OutOrStdout(),
+			Stderr: cmd.ErrOrStderr(),
+		})
+		return err
+	}
+	return cmd
+}
+
+func newHookUninstallCommand() *cobra.Command {
+	cmd := stubCommand("uninstall", "Remove the RegressGuard hook block", "rg hook uninstall")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return hookrun.Uninstall(hookrun.UninstallOptions{
+			Stdout: cmd.OutOrStdout(),
+			Stderr: cmd.ErrOrStderr(),
+		})
+	}
 	return cmd
 }
 

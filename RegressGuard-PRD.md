@@ -1079,8 +1079,8 @@ Default status for all v1 tasks below: NOT STARTED.
 | E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | DONE |
 | E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | DONE |
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | DONE |
-| E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | NOT STARTED |
-| E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | NOT STARTED |
+| E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | DONE |
+| E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | IN PROGRESS |
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | NOT STARTED |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 
@@ -1160,11 +1160,11 @@ Goal: A user can install local protection that blocks commits only when RegressG
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E5-T1 | Install hook | rg hook install creates or safely composes with .git/hooks/pre-commit | fixture git repo | NOT STARTED |
-| E5-T2 | Husky/lint-staged compatibility | Detects common hook managers and prints safe setup guidance | fixture repos | NOT STARTED |
-| E5-T3 | Hook check execution | Commit runs rg check; critical findings block commit | local git fixture | NOT STARTED |
-| E5-T4 | Hook output | Hook output matches Flow I; no prompts; suggests rg check --verbose | terminal screenshot | NOT STARTED |
-| E5-T5 | Uninstall hook | rg hook uninstall removes only RegressGuard-managed block | fixture git repo | NOT STARTED |
+| E5-T1 | Install hook | rg hook install creates or safely composes with .git/hooks/pre-commit | `TestInstall_createsHookFile`, `TestInstall_composesWithExistingHook`, `TestInstall_idempotent` pass; hook file is executable | DONE |
+| E5-T2 | Husky/lint-staged compatibility | Detects common hook managers and prints safe setup guidance | `TestInstall_detectsHusky`, `TestInstall_detectsLintStaged` pass | DONE |
+| E5-T3 | Hook check execution | Commit runs rg check; critical findings block commit | `TestInstall_hookScriptBlocksOnExit1` pass; hook script captures exit code and exits 1 on critical | DONE |
+| E5-T4 | Hook output | Hook output matches Flow I; no prompts; suggests rg check --verbose | `TestInstall_outputMentionsHookPath`, `TestInstall_outputFitsViewport` pass; output shows path, bypass, uninstall | DONE |
+| E5-T5 | Uninstall hook | rg hook uninstall removes only RegressGuard-managed block | `TestUninstall_removesBlock`, `TestUninstall_preservesOtherHookContent`, `TestUninstall_noopWhenBlockAbsent` pass | DONE |
 
 ## **11.9 Epic E6: Accuracy Controls**
 
