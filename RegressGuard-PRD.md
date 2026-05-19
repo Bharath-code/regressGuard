@@ -8,7 +8,7 @@ The Safety Net for AI-Generated Code
 | :---- | :---- |
 | **Author** | Bharath |
 | **Date** | May 2026 |
-| **Status** | Ready to Build |
+| **Status** | Spec Ready — Implementation Not Started |
 | **Target Launch** | 7 Days from Day 1 |
 
 # **1\. Executive Summary**
@@ -1042,7 +1042,213 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 }
 
 
-# **11\. 7-Day Build Plan**
+# **11\. Spec-Driven Delivery Plan**
+
+This PRD is the single source of truth for what RegressGuard is, what is in scope, what is complete, and what must be proven before launch. Implementation follows spec-driven development: no feature is "done" because code exists; it is done only when the acceptance criteria, UX contract, and verification evidence are complete.
+
+## **11.1 Operating Principles**
+
+| Principle | Rule |
+| :---- | :---- |
+| Spec before code | Every user-facing behavior must have acceptance criteria before implementation |
+| Vertical slices | Build demoable paths end-to-end instead of isolated modules that cannot prove value |
+| Contract-first CLI | Help text, flags, stdout/stderr, exit codes, and JSON schemas are product contracts |
+| Evidence over opinion | Each completed task needs verification evidence: command output, test result, fixture, or screenshot |
+| Narrow launch | v1 optimizes for one excellent path: Next.js/TypeScript API regression safety |
+| No silent scope creep | New ideas go to Backlog unless they unblock the v1 launch gate |
+
+## **11.2 Status System**
+
+| Status | Meaning | Who Can Move It |
+| :---- | :---- | :---- |
+| NOT STARTED | Spec accepted, no implementation yet | PM/Founder |
+| SPEC READY | Requirements and acceptance criteria are clear enough to build | PM/Founder |
+| IN PROGRESS | Actively being implemented | Builder |
+| BLOCKED | Cannot proceed without a decision, dependency, or external input | Builder |
+| IN REVIEW | Implementation exists and needs verification against the PRD | Builder/Reviewer |
+| DONE | Acceptance criteria, tests, and evidence are complete | PM/Founder |
+| CUT FROM V1 | Deliberately removed from launch scope | PM/Founder |
+
+Default status for all v1 tasks below: NOT STARTED.
+
+## **11.3 Product Requirements Traceability**
+
+| Epic | User Outcome | PRD Source | Launch Priority | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | NOT STARTED |
+| E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | NOT STARTED |
+| E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | NOT STARTED |
+| E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | NOT STARTED |
+| E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | NOT STARTED |
+| E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | NOT STARTED |
+| E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | NOT STARTED |
+| E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
+
+Priority definitions:
+
+| Priority | Meaning |
+| :---- | :---- |
+| P0 | Required for launch; no P0 can be open |
+| P1 | Strongly preferred; can ship without it only if P0 value is proven |
+| P2 | Post-launch improvement |
+
+## **11.4 Epic E1: CLI Foundation**
+
+Goal: RegressGuard feels trustworthy before it detects a single regression. Help, output, errors, versioning, and command contracts must be polished and script-safe.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E1-T1 | Scaffold Go CLI | rg binary builds locally; rg exits 0 for help/version; project uses Go 1.22+ | build command output | NOT STARTED |
+| E1-T2 | Command tree | rg, rg init, rg snapshot, rg check, rg hook, rg config, rg doctor, rg version exist | rg --help output | NOT STARTED |
+| E1-T3 | Progressive help | rg --help is compact; command-level --help includes usage, examples, flags, exit codes | captured help output at 80 columns | NOT STARTED |
+| E1-T4 | Output contract | --json writes valid JSON only to stdout; progress/diagnostics go to stderr; colors disabled in non-TTY | jq parse proof, stdout/stderr capture | NOT STARTED |
+| E1-T5 | Design system tokens | Centralized colors, symbols, spacing, and width rules exist; NO_COLOR respected | code review + NO_COLOR output | NOT STARTED |
+| E1-T6 | Actionable errors | Missing config/snapshot/server/test command errors include cause and copy-pasteable next command | error fixture outputs | NOT STARTED |
+| E1-T7 | Version metadata | rg version prints version, commit, build date, OS, architecture | rg version output | NOT STARTED |
+| E1-T8 | Shell completions | zsh, bash, fish completions can be generated or installed | completion command output | NOT STARTED |
+
+## **11.5 Epic E2: Project Init**
+
+Goal: A user can run rg init in a real project and get a useful .regressguard/config.json without reading docs.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E2-T1 | Detect project root | Finds nearest package.json or git root; fails helpfully outside a project | fixture test | NOT STARTED |
+| E2-T2 | Detect package manager | Detects npm, pnpm, yarn, bun from lockfiles; records package manager in config | fixture matrix | NOT STARTED |
+| E2-T3 | Detect test command | Infers vitest/jest/bun test/npm test from package scripts; lets user override | fixture matrix | NOT STARTED |
+| E2-T4 | Detect framework | Detects Next.js App Router v1 target; records framework | fixture test | NOT STARTED |
+| E2-T5 | Detect dev server URL | Uses default localhost:3000, checks reachability, allows override | command output | NOT STARTED |
+| E2-T6 | Interactive init | TTY mode uses guided prompts for uncertain values; final screen shows next command | terminal recording | NOT STARTED |
+| E2-T7 | Non-interactive init | Non-TTY never prompts; missing required values produce exact flag to rerun | non-TTY command output | NOT STARTED |
+| E2-T8 | Config write | Writes human-readable .regressguard/config.json; does not overwrite without confirmation unless --yes | config fixture | NOT STARTED |
+
+## **11.6 Epic E3: Snapshot Baseline**
+
+Goal: A user can capture a reliable known-good baseline before using an AI coding agent.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E3-T1 | Load config | rg snapshot validates config and suggests rg init if missing | command output | NOT STARTED |
+| E3-T2 | Run tests | Executes configured test command; captures passed/failed counts and duration | test fixture output | NOT STARTED |
+| E3-T3 | Discover Next.js routes | Finds app/api/**/route.ts GET routes for v1; records method/path | fixture project | NOT STARTED |
+| E3-T4 | Hit routes | Calls configured dev server with timeout and optional auth headers | local fixture server | NOT STARTED |
+| E3-T5 | Normalize schemas | Converts JSON responses into stable type shapes and hashes them | unit tests with dynamic fields | NOT STARTED |
+| E3-T6 | Save snapshot | Writes .regressguard/snapshot.json with timestamp, git hash, tests, routes, schemas, timings | snapshot fixture | NOT STARTED |
+| E3-T7 | Snapshot screen | Human output matches Flow D; skipped routes are visible but not alarming | terminal screenshot | NOT STARTED |
+| E3-T8 | Snapshot JSON | rg snapshot --json outputs parseable machine result only on stdout | jq parse proof | NOT STARTED |
+
+## **11.7 Epic E4: Regression Check**
+
+Goal: A user can run one command after an AI coding session and immediately know whether commit is safe.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E4-T1 | Load snapshot | rg check fails actionably if snapshot is missing or incompatible | error fixture | NOT STARTED |
+| E4-T2 | Rerun tests/routes | Uses same config and route set as snapshot; handles unavailable server helpfully | fixture run | NOT STARTED |
+| E4-T3 | Diff tests | Newly failing tests produce CRITICAL; warning-only cases exit 0 | unit test | NOT STARTED |
+| E4-T4 | Diff status codes | 2xx to 4xx/5xx and 2xx to non-2xx changes are reported clearly | fixture route diff | NOT STARTED |
+| E4-T5 | Diff schemas | Removed fields are CRITICAL; added/optional fields are WARNING by default | schema diff tests | NOT STARTED |
+| E4-T6 | Diff timings | Timing warning triggers only when threshold rules are met | timing unit tests | NOT STARTED |
+| E4-T7 | Human pass screen | Flow E appears for clean checks; exit code 0 | terminal screenshot | NOT STARTED |
+| E4-T8 | Human warning screen | Flow G appears for warning-only checks; exit code 0 | terminal screenshot | NOT STARTED |
+| E4-T9 | Human critical screen | Flow F appears for critical regressions; exit code 1 | terminal screenshot | NOT STARTED |
+| E4-T10 | JSON check output | rg check --json schema is stable and parseable; --verbose stays on stderr | jq parse proof | NOT STARTED |
+
+## **11.8 Epic E5: Git Hook**
+
+Goal: A user can install local protection that blocks commits only when RegressGuard finds critical regressions.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E5-T1 | Install hook | rg hook install creates or safely composes with .git/hooks/pre-commit | fixture git repo | NOT STARTED |
+| E5-T2 | Husky/lint-staged compatibility | Detects common hook managers and prints safe setup guidance | fixture repos | NOT STARTED |
+| E5-T3 | Hook check execution | Commit runs rg check; critical findings block commit | local git fixture | NOT STARTED |
+| E5-T4 | Hook output | Hook output matches Flow I; no prompts; suggests rg check --verbose | terminal screenshot | NOT STARTED |
+| E5-T5 | Uninstall hook | rg hook uninstall removes only RegressGuard-managed block | fixture git repo | NOT STARTED |
+
+## **11.9 Epic E6: Accuracy Controls**
+
+Goal: The product earns trust by catching real regressions while keeping false positives low.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E6-T1 | Dynamic field ignore | createdAt, updatedAt, id, uuid, token, nonce fields normalize consistently | unit tests | NOT STARTED |
+| E6-T2 | User ignore rules | ignoreFields in config suppresses selected schema paths | unit tests | NOT STARTED |
+| E6-T3 | Route skip rules | skip list prevents known-problem routes from blocking snapshot/check | fixture config | NOT STARTED |
+| E6-T4 | Auth headers | Bearer token and cookie config are applied consistently | fixture server | NOT STARTED |
+| E6-T5 | Timeout handling | Route timeouts produce actionable warnings/errors, not crashes | fixture server | NOT STARTED |
+| E6-T6 | False positive benchmark | Run against 5 real projects; document false positive rate and top noise sources | benchmark notes | NOT STARTED |
+
+## **11.10 Epic E7: Distribution**
+
+Goal: A new user can install and verify RegressGuard quickly on a fresh machine.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E7-T1 | GoReleaser setup | Builds macOS/Linux binaries for amd64/arm64 | release dry run | NOT STARTED |
+| E7-T2 | Curl installer | One-line installer downloads correct binary and verifies install | fresh shell test | NOT STARTED |
+| E7-T3 | Homebrew formula | brew install path works or is documented for launch | brew audit/test | NOT STARTED |
+| E7-T4 | README quickstart | README gets user from install to rg check in under 3 minutes | user test | NOT STARTED |
+| E7-T5 | Example fixture project | Repo includes a small Next.js/API fixture for demos and regression tests | demo output | NOT STARTED |
+
+## **11.11 Epic E8: Launch Feedback**
+
+Goal: Validate demand and usability with real developers before expanding scope.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E8-T1 | Demo script | 60-90 second demo shows AI-style regression caught before commit | recording | NOT STARTED |
+| E8-T2 | Outreach list | 20 warm developers identified with stack/tool context | list in private notes | NOT STARTED |
+| E8-T3 | Feedback capture | Collect at least 5 concrete feedback items from real runs | feedback log | NOT STARTED |
+| E8-T4 | Usage proof | At least 3 real developers run rg check on their own project | screenshots/testimonials | NOT STARTED |
+| E8-T5 | Payment signal | Ask every active tester if they would pay or sponsor; record answer | feedback log | NOT STARTED |
+
+## **11.12 Definition of Done**
+
+A task is DONE only when all are true:
+
+1. Acceptance criteria pass.
+2. Relevant tests or fixtures exist.
+3. CLI output follows the design system.
+4. --json, --verbose, non-TTY, and NO_COLOR implications are considered.
+5. Errors include a next action.
+6. Evidence is captured in the PRD status table or linked implementation notes.
+
+## **11.13 Launch Gates**
+
+| Gate | Requirement | Status |
+| :---- | :---- | :---- |
+| G1 Core path | rg init -> rg snapshot -> rg check works on a real Next.js project | NOT STARTED |
+| G2 Safety | Critical regression exits 1 and blocks git hook | NOT STARTED |
+| G3 Scriptability | rg check --json pipes to jq with no stdout pollution | NOT STARTED |
+| G4 UX quality | All quality-bar screenshots from Section 6.8 are captured and pass | NOT STARTED |
+| G5 Accuracy | 5-project false positive benchmark documented | NOT STARTED |
+| G6 Distribution | Fresh machine install works via curl/Homebrew and rg version verifies | NOT STARTED |
+| G7 Validation | 3 real users run it; 5 feedback items collected | NOT STARTED |
+
+Launch rule: RegressGuard v0.1.0 ships only when all P0 epics are DONE and all launch gates are DONE or explicitly waived in writing.
+
+## **11.14 Change Control**
+
+Any new request must be classified before implementation:
+
+| Classification | Action |
+| :---- | :---- |
+| P0 launch blocker | Add to relevant epic with acceptance criteria |
+| P1 launch enhancer | Add only if it does not delay P0 gates |
+| P2 post-launch | Add to backlog, do not build in v1 |
+| Nice idea / unclear value | Capture in notes, validate after launch |
+
+Scope explicitly deferred from v1:
+
+1. UI visual regression testing.
+2. Python/FastAPI/Django.
+3. Cloud dashboard.
+4. Team accounts.
+5. AI-generated test creation.
+6. Enterprise compliance reports.
+
+# **12\. 7-Day Build Plan**
 
 | Parkinson's Law applied: scope is locked to what ships in 7 days. Nothing else gets added. |
 | :---- |
@@ -1057,9 +1263,9 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | Day 6 | GitHub Release binaries via GoReleaser. README. Landing page (single GitHub page). One-line curl installer. Post on X and Indie Hackers. | curl/Homebrew install works; rg version verifies install; optional npm wrapper documented |
 | Day 7 | Fix top 3 bugs from real user feedback. Capture terminal screenshots/recordings for help/init/snapshot/check/hook flows. Add to git-scope README as related tool. | 3 real humans have used it; screen quality bar passes |
 
-# **12\. Financial Projections**
+# **13\. Financial Projections**
 
-## **12.1 Pricing Model**
+## **13.1 Pricing Model**
 
 | Tier | What's Included | Goal |
 | :---- | :---- | :---- |
@@ -1067,7 +1273,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | Developer — $9/mo | Unlimited snapshots, all projects, git hook, all flags | Target 80% of paying users |
 | Team — $29/mo | Shared snapshots, multi-developer, dashboard, Slack alerts | Target 20% of paying users |
 
-## **12.2 Monthly Projections**
+## **13.2 Monthly Projections**
 
 | Month | Users | MRR | Driver |
 | :---- | :---- | :---- | :---- |
@@ -1079,7 +1285,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | Month 9 | 9,000 free / 420 paid | ₹3,78,000 (\~$4,536) | Enterprise inquiries begin |
 | Month 12 | 15,000 free / 700 paid | ₹6,30,000 (\~$7,560) | ₹75L ARR run rate |
 
-## **12.3 Cost Structure**
+## **13.3 Cost Structure**
 
 | Infrastructure (Cloudflare Workers, KV) | ₹0 — free tier covers until ₹2L MRR |
 | :---- | :---- |
@@ -1088,7 +1294,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **Domain \+ Email (Resend)** | \< ₹500/month |
 | **Total Monthly Costs** | \< ₹5,000 until ₹3L+ MRR |
 
-## **12.4 Path to ₹1 Crore ARR**
+## **13.4 Path to ₹1 Crore ARR**
 
 | Target | \~930 paying users at blended $9.50 average |
 | :---- | :---- |
@@ -1097,14 +1303,14 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **Gross Margin** | \~94% (software, minimal infra cost) |
 | **Break-even** | Month 2 (5 paid users covers all costs) |
 
-# **13\. Marketing & Distribution**
+# **14\. Marketing & Distribution**
 
-## **13.1 Distribution Strategy**
+## **14.1 Distribution Strategy**
 
 | Your biggest asset: the git-scope audience. Every open source maintainer who starred git-scope is your exact ICP. Use this before spending a rupee on ads. |
 | :---- |
 
-## **13.2 Week 1 Distribution**
+## **14.2 Week 1 Distribution**
 
 10. Post on X with a screen recording: "I built a tool that caught a regression Claude Code introduced silently. Two commands. 12 seconds." — this is the tweet that spreads.
 
@@ -1116,7 +1322,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 
 14. DM 20 developers in your git-scope network directly — not cold outreach, warm community.
 
-## **13.3 Ongoing Marketing Engine**
+## **14.3 Ongoing Marketing Engine**
 
 | Testimonial tweets | Every time a user tweets "RegressGuard saved me" — RT it. This is your primary content. |
 | :---- | :---- |
@@ -1126,7 +1332,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **YouTube demo (month 2\)** | 3-minute screen recording showing real regression caught — no editing needed |
 | **Dev.to / Hashnode article** | "Why AI coding agents need a safety net" — ranks for search terms your users use |
 
-## **13.4 Positioning — What to Say**
+## **14.4 Positioning — What to Say**
 
 | Tagline | "Before you commit, know what broke." |
 | :---- | :---- |
@@ -1135,7 +1341,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **What it IS** | A safety net. Two commands. Works with your existing stack. |
 | **Against Cursor/Claude Code** | "We are the safety net for the tools you already love — not a competitor." |
 
-# **14\. Risks & Mitigations**
+# **15\. Risks & Mitigations**
 
 | Risk | Severity | Mitigation | Moat |
 | :---- | :---- | :---- | :---- |
@@ -1146,7 +1352,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | Competitor builds same | Medium | Distribution moat via git-scope \+ build in public community | Compounding trust |
 | DB state makes routes flaky | Medium | Seed data docs \+ explicit skip list in config | User control |
 
-# **15\. Defensibility & Moats**
+# **16\. Defensibility & Moats**
 
 | Distribution Moat (Day 1\) | git-scope audience \+ build in public. Cursor cannot buy your community trust. |
 | :---- | :---- |
@@ -1155,9 +1361,9 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **Positioning Moat (Day 1\)** | Complementary to Claude Code \+ Cursor, not competitive. They cannot kill you without damaging developer trust in their own tools. |
 | **Open Source Moat** | Stars compound. Contributors add framework support. Community becomes distribution. |
 
-# **16\. Success Metrics**
+# **17\. Success Metrics**
 
-## **16.1 Week 1 (Non-negotiable)**
+## **17.1 Week 1 (Non-negotiable)**
 
 | GitHub release | regressguard installs and runs on a fresh machine via one-line curl/Homebrew; rg version verifies install; optional npx wrapper works |
 | :---- | :---- |
@@ -1165,7 +1371,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **Feedback collected** | At least 5 pieces of real feedback captured |
 | **False positive baseline** | Tested on 5 real projects — false positive rate documented |
 
-## **16.2 Month 1**
+## **17.2 Month 1**
 
 | GitHub Stars | 100+ (organic signal) |
 | :---- | :---- |
@@ -1173,7 +1379,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **MRR** | ₹4,500+ |
 | **User Testimonial** | 1 tweet or post saying "RegressGuard saved me" |
 
-## **16.3 Month 6**
+## **17.3 Month 6**
 
 | GitHub Stars | 1,000+ |
 | :---- | :---- |
@@ -1182,7 +1388,7 @@ func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 | **Churn Rate** | \<5% monthly |
 | **NPS** | \>50 |
 
-# **17\. The One Rule**
+# **18\. The One Rule**
 
 | Ship the CLI in 7 days or do not ship it at all. Every day of additional planning is a day a user goes unserved and a competitor gets closer. The spec is done. The only question left is execution. |
 | :---- |
