@@ -28,10 +28,13 @@ type CheckResult struct {
 	Severity string `json:"severity"`
 	Type     string `json:"type"`
 	// Route is the canonical "METHOD /path" key, empty for test-level findings.
-	Route   string `json:"route,omitempty"`
-	Before  any    `json:"before,omitempty"`
-	After   any    `json:"after,omitempty"`
-	Message string `json:"message"`
+	Route        string        `json:"route,omitempty"`
+	Before       any           `json:"before,omitempty"`
+	After        any           `json:"after,omitempty"`
+	Message      string        `json:"message"`
+	// FieldChanges is populated for schema-type findings when both snapshots
+	// store the normalized shape. Nil for status/timing/test findings.
+	FieldChanges []FieldChange `json:"fieldChanges,omitempty"`
 }
 
 // DiffResult is the full output of DiffSnapshots.
@@ -102,15 +105,17 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 			routeCritical = true
 		}
 
-		// E4-T5: schema hash mismatch.
+		// E4-T5: schema hash mismatch — with field-level diff when shapes are available.
 		if snap.SchemaHash != curr.SchemaHash && snap.SchemaHash != "" && curr.SchemaHash != "" {
+			fieldChanges := DiffSchemaShapes(snap.NormalizedSchema, curr.NormalizedSchema)
 			results = append(results, CheckResult{
-				Severity: SeverityCritical,
-				Type:     TypeSchema,
-				Route:    key,
-				Before:   snap.SchemaHash[:8],
-				After:    curr.SchemaHash[:8],
-				Message:  fmt.Sprintf("%s: response schema changed", key),
+				Severity:     SeverityCritical,
+				Type:         TypeSchema,
+				Route:        key,
+				Before:       snap.SchemaHash[:8],
+				After:        curr.SchemaHash[:8],
+				Message:      fmt.Sprintf("%s: response schema changed", key),
+				FieldChanges: fieldChanges,
 			})
 			routeCritical = true
 		}

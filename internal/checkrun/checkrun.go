@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/Bharath-code/regressguard/internal/config"
@@ -25,17 +26,19 @@ type Options struct {
 	ProjectRoot string
 	JSON        bool
 	Verbose     bool
-	Stdout      io.Writer
-	Stderr      io.Writer
+	// HookMode enables compact output for git pre-commit hooks (RG_HOOK=1).
+	HookMode bool
+	Stdout   io.Writer
+	Stderr   io.Writer
 }
 
 // Result is the machine-readable outcome of rg check.
 // The JSON schema is stable across minor versions (PRD AC E4-T10).
 type Result struct {
-	Status  string          `json:"status"` // "pass", "warning", "critical"
-	Summary ResultSummary   `json:"summary"`
-	Results []CheckFinding  `json:"results"`
-	Next    string          `json:"next"`
+	Status  string         `json:"status"` // "pass", "warning", "critical"
+	Summary ResultSummary  `json:"summary"`
+	Results []CheckFinding `json:"results"`
+	Next    string         `json:"next"`
 }
 
 // ResultSummary holds the top-level counts.
@@ -47,12 +50,13 @@ type ResultSummary struct {
 
 // CheckFinding is a single regression or warning finding.
 type CheckFinding struct {
-	Severity string `json:"severity"`
-	Type     string `json:"type"`
-	Route    string `json:"route,omitempty"`
-	Before   any    `json:"before,omitempty"`
-	After    any    `json:"after,omitempty"`
-	Message  string `json:"message"`
+	Severity     string               `json:"severity"`
+	Type         string               `json:"type"`
+	Route        string               `json:"route,omitempty"`
+	Before       any                  `json:"before,omitempty"`
+	After        any                  `json:"after,omitempty"`
+	Message      string               `json:"message"`
+	SchemaDiff   []engine.FieldChange `json:"schemaDiff,omitempty"`
 }
 
 // Run executes the full check pipeline and returns a Result.
@@ -60,6 +64,11 @@ type CheckFinding struct {
 // Result.Status: "critical" → exit 1, "pass"/"warning" → exit 0.
 func Run(opts Options) (Result, error) {
 	opts = withDefaults(opts)
+
+	// Detect hook mode from environment (E9-T4).
+	if os.Getenv("RG_HOOK") == "1" {
+		opts.HookMode = true
+	}
 
 	// E4-T1: load config.
 	cfg, err := loadConfig(opts.ProjectRoot)
@@ -71,6 +80,16 @@ func Run(opts Options) (Result, error) {
 	snap, err := loadSnapshot(opts.ProjectRoot)
 	if err != nil {
 		return Result{}, err
+	}
+
+	// E9-T2: fast server-down detection — probe before hitting all routes.
+	if len(cfg.Routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
+		return Result{}, failures.Actionable{
+			Title:       "rg check failed: dev server is not responding.",
+			Cause:       "The server at " + cfg.ServerURL + " did not respond within 500ms.",
+			Next:        "npm run dev",
+			MoreContext: "rg doctor",
+		}
 	}
 
 	// E4-T2: rerun tests.
@@ -123,11 +142,12 @@ func Run(opts Options) (Result, error) {
 		}
 		key := snapshot.RouteKey(rr.Method, rr.Path)
 		afterSnap.Routes[key] = snapshot.RouteRecord{
-			Method:     rr.Method,
-			Path:       rr.Path,
-			Status:     rr.Status,
-			SchemaHash: rr.SchemaHash,
-			MS:         rr.MS,
+			Method:           rr.Method,
+			Path:             rr.Path,
+			Status:           rr.Status,
+			SchemaHash:       rr.SchemaHash,
+			NormalizedSchema: rr.NormalizedSchema,
+			MS:               rr.MS,
 		}
 	}
 
@@ -139,12 +159,13 @@ func Run(opts Options) (Result, error) {
 	findings := make([]CheckFinding, 0, len(diff.Results))
 	for _, r := range diff.Results {
 		findings = append(findings, CheckFinding{
-			Severity: r.Severity,
-			Type:     r.Type,
-			Route:    r.Route,
-			Before:   r.Before,
-			After:    r.After,
-			Message:  r.Message,
+			Severity:   r.Severity,
+			Type:       r.Type,
+			Route:      r.Route,
+			Before:     r.Before,
+			After:      r.After,
+			Message:    r.Message,
+			SchemaDiff: r.FieldChanges,
 		})
 	}
 
@@ -167,8 +188,15 @@ func Run(opts Options) (Result, error) {
 		return result, writeJSON(opts.Stdout, result)
 	}
 
+	// E9-T4: compact hook output.
+	if opts.HookMode {
+		return result, writeHook(opts.Stdout, result, diff)
+	}
+
 	// E4-T7/T8/T9: human output.
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap)
+	// E9-T3: git context for critical findings.
+	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles)
 }
 
 // loadConfig reads .regressguard/config.json from the project root.
@@ -225,6 +253,30 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 	return snap, nil
 }
 
+// gitChangedFiles returns up to 5 files changed since the snapshot commit.
+// Returns nil if git is unavailable or the commit is unknown.
+func gitChangedFiles(root, sinceCommit string) []string {
+	if sinceCommit == "" || sinceCommit == "unknown" {
+		return nil
+	}
+	cmd := exec.Command("git", "-C", root, "diff", "--name-only", sinceCommit)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var files []string
+	for _, l := range lines {
+		if l != "" {
+			files = append(files, l)
+		}
+		if len(files) == 5 {
+			break
+		}
+	}
+	return files
+}
+
 // statusFromDiff maps a DiffResult to a status string.
 func statusFromDiff(diff engine.DiffResult) string {
 	if diff.HasCritical {
@@ -249,12 +301,12 @@ func nextCommand(status string) string {
 }
 
 // writeHuman renders the appropriate Flow screen (E/F/G) to stdout.
-func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot) error {
+func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string) error {
 	_ = stderr
 
 	switch result.Status {
 	case "critical":
-		return writeHumanCritical(stdout, result, diff)
+		return writeHumanCritical(stdout, result, diff, gitFiles)
 	case "warning":
 		return writeHumanWarning(stdout, result, diff)
 	default:
@@ -271,7 +323,6 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 		"",
 	}
 
-	// Compact counts.
 	lines = append(lines,
 		fmt.Sprintf("  Tests       %d passed, %d failed", after.Tests.Passed, after.Tests.Failed),
 		fmt.Sprintf("  Routes      %d unchanged", result.Summary.Passed),
@@ -296,10 +347,8 @@ func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) 
 		"",
 		fmt.Sprintf("%s %d non-blocking %s", ui.SymbolWarning, n, noun),
 		"",
+		fmtTableHeader(),
 	}
-
-	// Table header.
-	lines = append(lines, fmtTableHeader())
 	for _, r := range diff.Results {
 		if r.Severity == engine.SeverityWarning {
 			lines = append(lines, fmtWarningRow(r))
@@ -317,8 +366,8 @@ func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) 
 	return writeLines(stdout, lines)
 }
 
-// writeHumanCritical renders Flow F — critical regression.
-func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult) error {
+// writeHumanCritical renders Flow F — critical regression with field diff and git context.
+func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult, gitFiles []string) error {
 	n := result.Summary.Critical
 	noun := "regression"
 	if n != 1 {
@@ -330,19 +379,30 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult)
 		"",
 		fmt.Sprintf("%s %d %s detected", ui.SymbolCritical, n, noun),
 		"",
+		fmtCriticalTableHeader(),
 	}
 
-	// Table: show critical findings.
-	lines = append(lines, fmtCriticalTableHeader())
 	for _, r := range diff.Results {
 		if r.Severity == engine.SeverityCritical {
 			lines = append(lines, fmtCriticalRow(r))
+			// E9-T1: show field-level changes for schema findings.
+			if r.Type == engine.TypeSchema && len(r.FieldChanges) > 0 {
+				fieldLines := engine.FormatFieldChanges(r.FieldChanges)
+				lines = append(lines, fieldLines...)
+			}
 		}
 	}
 
-	// Likely cause heuristic.
 	lines = append(lines, "", "Likely cause:")
 	lines = append(lines, "  "+likelyCause(diff))
+
+	// E9-T3: git context.
+	if len(gitFiles) > 0 {
+		lines = append(lines, "", "Changed files since snapshot:")
+		for _, f := range gitFiles {
+			lines = append(lines, "  "+f)
+		}
+	}
 
 	lines = append(lines,
 		"",
@@ -351,6 +411,44 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult)
 		"  git diff",
 		"",
 		"Commit blocked.",
+	)
+
+	return writeLines(stdout, lines)
+}
+
+// writeHook renders compact Flow I output for git pre-commit hooks (E9-T4).
+func writeHook(stdout io.Writer, result Result, diff engine.DiffResult) error {
+	if result.Status == "pass" || result.Status == "warning" {
+		// Warnings don't block — stay silent in hook mode.
+		return nil
+	}
+
+	n := result.Summary.Critical
+	noun := "regression"
+	if n != 1 {
+		noun = "regressions"
+	}
+
+	lines := []string{
+		"RegressGuard pre-commit",
+		"",
+		fmt.Sprintf("%s %d %s detected", ui.SymbolCritical, n, noun),
+	}
+
+	// Show top finding only (keep it short).
+	for _, r := range diff.Results {
+		if r.Severity == engine.SeverityCritical {
+			lines = append(lines, "  "+r.Message)
+			break
+		}
+	}
+
+	lines = append(lines,
+		"",
+		"Run:",
+		"  rg check --verbose",
+		"",
+		"Commit blocked. Use --no-verify only if you accept the risk.",
 	)
 
 	return writeLines(stdout, lines)
@@ -379,7 +477,6 @@ func fmtTableHeader() string {
 func fmtWarningRow(r engine.CheckResult) string {
 	route := truncate(r.Route, 36)
 	change := r.Message
-	// Trim the route prefix from the message to avoid duplication.
 	if strings.HasPrefix(change, r.Route+": ") {
 		change = change[len(r.Route)+2:]
 	}
@@ -415,7 +512,7 @@ func likelyCause(diff engine.DiffResult) string {
 	}
 }
 
-// truncate shortens a string to max n runes, appending "…" if truncated.
+// truncate shortens a string to max n runes, appending "~" if truncated.
 func truncate(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {

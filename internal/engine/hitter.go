@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	defaultRouteTimeout = 10 * time.Second
-	maxBodyBytes        = 1 << 20 // 1 MB
+	defaultRouteTimeout  = 10 * time.Second
+	serverProbeTimeout   = 500 * time.Millisecond
+	maxBodyBytes         = 1 << 20 // 1 MB
 )
 
 // RouteResult holds the outcome of hitting a single route.
@@ -22,9 +23,12 @@ type RouteResult struct {
 	Path       string
 	Status     int
 	SchemaHash string
-	MS         int64
-	Skipped    bool
-	SkipReason string
+	// NormalizedSchema is the JSON-encoded normalized type shape.
+	// Populated by HitRoutes so the snapshot engine can store it for field-level diff.
+	NormalizedSchema []byte
+	MS               int64
+	Skipped          bool
+	SkipReason       string
 	// Body is only populated when verbose mode is active.
 	Body []byte
 }
@@ -38,6 +42,24 @@ type HitOptions struct {
 	Verbose      bool
 	// HTTPClient allows injection of a custom client (useful in tests).
 	HTTPClient *http.Client
+}
+
+// ServerReachable probes the server URL with a short timeout.
+// Returns false within 500ms if the server is not responding.
+// This is used by rg check to fail fast instead of timing out per-route.
+func ServerReachable(serverURL string) bool {
+	client := &http.Client{Timeout: serverProbeTimeout}
+	// Probe the root path — we just need a TCP connection, not a 200.
+	req, err := http.NewRequestWithContext(context.Background(), "GET", strings.TrimRight(serverURL, "/")+"/", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return true
 }
 
 // HitRoutes calls each non-skipped route in the config and returns results.
@@ -130,14 +152,15 @@ func hitRoute(client *http.Client, route config.Route, opts HitOptions) RouteRes
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 
-	schemaHash := NormalizeAndHash(body, opts.IgnoreFields)
+	schemaHash, shapeJSON := NormalizeAndHashWithShape(body, opts.IgnoreFields)
 
 	result := RouteResult{
-		Method:     route.Method,
-		Path:       route.Path,
-		Status:     resp.StatusCode,
-		SchemaHash: schemaHash,
-		MS:         elapsed,
+		Method:           route.Method,
+		Path:             route.Path,
+		Status:           resp.StatusCode,
+		SchemaHash:       schemaHash,
+		NormalizedSchema: shapeJSON,
+		MS:               elapsed,
 	}
 	if opts.Verbose {
 		result.Body = body

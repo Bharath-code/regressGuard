@@ -128,11 +128,12 @@ func Run(opts Options) (Result, error) {
 		captured++
 		key := snapshot.RouteKey(rr.Method, rr.Path)
 		snap.Routes[key] = snapshot.RouteRecord{
-			Method:     rr.Method,
-			Path:       rr.Path,
-			Status:     rr.Status,
-			SchemaHash: rr.SchemaHash,
-			MS:         rr.MS,
+			Method:           rr.Method,
+			Path:             rr.Path,
+			Status:           rr.Status,
+			SchemaHash:       rr.SchemaHash,
+			NormalizedSchema: rr.NormalizedSchema,
+			MS:               rr.MS,
 		}
 	}
 

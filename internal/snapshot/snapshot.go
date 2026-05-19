@@ -41,7 +41,11 @@ type RouteRecord struct {
 	Path       string `json:"path"`
 	Status     int    `json:"status"`
 	SchemaHash string `json:"schemaHash"`
-	MS         int64  `json:"ms"`
+	// NormalizedSchema stores the type-shape of the response for field-level diff.
+	// It is the output of engine.NormalizeWithIgnore serialized as JSON.
+	// Populated from snapshot version 1 onward.
+	NormalizedSchema json.RawMessage `json:"normalizedSchema,omitempty"`
+	MS               int64           `json:"ms"`
 }
 
 // RouteKey returns the canonical map key for a route.

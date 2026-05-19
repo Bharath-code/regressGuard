@@ -142,3 +142,21 @@ func NormalizeAndHash(body []byte, ignoreFields []string) string {
 	normalized := NormalizeWithIgnore(parsed, ignoreFields)
 	return HashSchema(normalized)
 }
+
+// NormalizeAndHashWithShape is like NormalizeAndHash but also returns the
+// normalized shape as JSON bytes. Used by the snapshot engine to store the
+// shape for field-level diff in rg check.
+// Returns empty string and nil if the body is not valid JSON.
+func NormalizeAndHashWithShape(body []byte, ignoreFields []string) (hash string, shapeJSON []byte) {
+	var parsed any
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", nil
+	}
+	normalized := NormalizeWithIgnore(parsed, ignoreFields)
+	h := HashSchema(normalized)
+	b, err := json.Marshal(normalized)
+	if err != nil {
+		return h, nil
+	}
+	return h, b
+}

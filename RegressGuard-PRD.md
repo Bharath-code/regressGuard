@@ -1083,6 +1083,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | DONE |
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | DONE |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
+| E9 10x Value Improvements | Field diff, fast server detection, git context, tight hook output | Section 11.11 | P0 | DONE |
 
 Priority definitions:
 
@@ -1191,7 +1192,18 @@ Goal: A new user can install and verify RegressGuard quickly on a fresh machine.
 | E7-T4 | README quickstart | README gets user from install to rg check in under 3 minutes | `README.md` covers install, init, snapshot, check, hook, config, exit codes, scripting, and supported stacks in one page | DONE |
 | E7-T5 | Example fixture project | Repo includes a small Next.js/API fixture for demos and regression tests | `fixtures/nextjs-app/` has 4 routes (health, users, profile, auth/verify), vitest tests, pre-configured `.regressguard/config.json`, and `fixtures/README.md` with demo walkthrough | DONE |
 
-## **11.11 Epic E8: Launch Feedback**
+## **11.11 Epic E9: 10x Value Improvements**
+
+Goal: Close the gap between "useful" and "I can't work without this." Four targeted improvements that turn schema hash mismatches into actionable field-level diffs, eliminate the most common first-run frustration (server not running), surface git context alongside regressions, and tighten the hook output to match Flow I exactly.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E9-T1 | Field-level schema diff | When schema changes, show exactly which fields were removed, added, or type-changed — not just "schema changed" | `TestDiffSchemaShapes_fieldRemoved`, `TestDiffSchemaShapes_fieldAdded`, `TestDiffSchemaShapes_fieldTypeChanged`, `TestDiffSchemaShapes_nestedFieldRemoved`, `TestFormatFieldChanges_output` pass; snapshot stores `normalizedSchema` JSON; diff engine populates `FieldChanges`; critical screen shows `- field (type, removed)` lines; `--json` includes `schemaDiff` array | DONE |
+| E9-T2 | Fast server-down detection | When dev server is unreachable, detect it in <500ms and print actionable error — not a 10s timeout per route | `ServerReachable()` probes with 500ms timeout before hitting routes; unreachable server returns `failures.Actionable` with `npm run dev` suggestion; exits 2 not 1 | DONE |
+| E9-T3 | Git context alongside regressions | When regressions are found, show which files changed since the snapshot commit | `gitChangedFiles()` runs `git diff --name-only <snapshot-commit>`; critical screen appends "Changed files since snapshot:" with top 5 files; gracefully skipped when git unavailable | DONE |
+| E9-T4 | Tighter hook output (Flow I exact) | Pre-commit hook output matches Flow I: header, finding count, one next command, bypass line — under 8 lines total | Hook script sets `RG_HOOK=1`; `checkrun.Run` detects env var and calls `writeHook()`; compact output: header, count, top finding, next command, bypass — under 8 lines | DONE |
+
+## **11.12 Epic E8: Launch Feedback**
 
 Goal: Validate demand and usability with real developers before expanding scope.
 
@@ -1203,7 +1215,7 @@ Goal: Validate demand and usability with real developers before expanding scope.
 | E8-T4 | Usage proof | At least 3 real developers run rg check on their own project | screenshots/testimonials | NOT STARTED |
 | E8-T5 | Payment signal | Ask every active tester if they would pay or sponsor; record answer | feedback log | NOT STARTED |
 
-## **11.12 Definition of Done**
+## **11.13 Definition of Done**
 
 A task is DONE only when all are true:
 
@@ -1214,7 +1226,7 @@ A task is DONE only when all are true:
 5. Errors include a next action.
 6. Evidence is captured in the PRD status table or linked implementation notes.
 
-## **11.13 Launch Gates**
+## **11.14 Launch Gates**
 
 | Gate | Requirement | Status |
 | :---- | :---- | :---- |
@@ -1228,7 +1240,7 @@ A task is DONE only when all are true:
 
 Launch rule: RegressGuard v0.1.0 ships only when all P0 epics are DONE and all launch gates are DONE or explicitly waived in writing.
 
-## **11.14 Change Control**
+## **11.15 Change Control**
 
 Any new request must be classified before implementation:
 

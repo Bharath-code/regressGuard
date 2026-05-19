@@ -18,8 +18,8 @@ const (
 	blockEnd   = "# --- RegressGuard end ---"
 
 	// hookScript is the shell code injected between the markers.
-	// It runs rg check and blocks the commit on exit code 1.
-	hookScript = `rg check
+	// It runs rg check in hook mode and blocks the commit on exit code 1.
+	hookScript = `RG_HOOK=1 rg check
 RG_EXIT=$?
 if [ $RG_EXIT -eq 1 ]; then
   echo ""
