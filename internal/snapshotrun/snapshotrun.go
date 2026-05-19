@@ -35,6 +35,7 @@ type Result struct {
 	SnapshotPath string         `json:"snapshotPath"`
 	Tests        TestSummary    `json:"tests"`
 	Routes       []RouteOutcome `json:"routes"`
+	ServerDown   bool           `json:"serverDown,omitempty"`
 	Next         string         `json:"next"`
 }
 
@@ -102,21 +103,30 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T3 / E3-T4: discover routes and hit them.
+	// E10-T2: probe server before hitting routes — skip gracefully if down.
 	routes := cfg.Routes
-	if opts.Verbose {
-		_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(routes))
+	var routeResults []engine.RouteResult
+	serverDown := false
+
+	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
+		serverDown = true
+		_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolWarning+" Dev server not responding at "+cfg.ServerURL+" — routes skipped")
+	} else {
+		if opts.Verbose {
+			_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(routes))
+		}
+		var routeProgressWriter io.Writer
+		if opts.Verbose {
+			routeProgressWriter = opts.Stderr
+		}
+		hitOpts := engine.HitOptions{
+			ServerURL:    cfg.ServerURL,
+			Auth:         cfg.Auth,
+			IgnoreFields: cfg.IgnoreFields,
+			Verbose:      opts.Verbose,
+		}
+		routeResults = engine.HitRoutes(routes, hitOpts, routeProgressWriter)
 	}
-	var routeProgressWriter io.Writer
-	if opts.Verbose {
-		routeProgressWriter = opts.Stderr
-	}
-	hitOpts := engine.HitOptions{
-		ServerURL:    cfg.ServerURL,
-		Auth:         cfg.Auth,
-		IgnoreFields: cfg.IgnoreFields,
-		Verbose:      opts.Verbose,
-	}
-	routeResults := engine.HitRoutes(routes, hitOpts, routeProgressWriter)
 
 	captured := 0
 	skipped := 0
@@ -166,8 +176,12 @@ func Run(opts Options) (Result, error) {
 			Skipped:  testResult.Skipped,
 			Duration: fmtDuration(testResult.Duration),
 		},
-		Routes: outcomes,
-		Next:   "rg check",
+		Routes:     outcomes,
+		ServerDown: serverDown,
+		Next:       "rg check",
+	}
+	if serverDown {
+		result.Next = "npm run dev && rg snapshot"
 	}
 
 	// E3-T8: JSON output.
@@ -176,7 +190,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T7: human output (Flow D).
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, testResult.Duration)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, serverDown, testResult.Duration)
 }
 
 // loadConfig reads .regressguard/config.json from the project root.
@@ -201,7 +215,7 @@ func loadConfig(root string) (config.Config, error) {
 }
 
 // writeHuman renders the Flow D snapshot screen.
-func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, testDuration time.Duration) error {
+func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, serverDown bool, testDuration time.Duration) error {
 	_ = stderr
 
 	lines := []string{
@@ -217,15 +231,23 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 	testLine += fmt.Sprintf("   %s", fmtDuration(testDuration))
 	lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+testLine)
 
-	// Routes line.
-	routeLine := fmt.Sprintf("%-10s %d captured", "Routes", captured)
-	if skipped > 0 {
-		routeLine += fmt.Sprintf(", %d skipped", skipped)
+	// Routes line — show warning if server was down.
+	if serverDown {
+		lines = append(lines, ui.Paint(stdout, ui.ColorWarn, ui.SymbolWarning)+" "+fmt.Sprintf("%-10s Dev server not responding — routes skipped", "Routes"))
+	} else {
+		routeLine := fmt.Sprintf("%-10s %d captured", "Routes", captured)
+		if skipped > 0 {
+			routeLine += fmt.Sprintf(", %d skipped", skipped)
+		}
+		lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+routeLine)
 	}
-	lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+routeLine)
 
 	// Schemas line.
-	lines = append(lines, fmt.Sprintf("%s %-10s %d hashed", ui.Paint(stdout, ui.ColorOK, ui.SymbolPass), "Schemas", captured))
+	if serverDown {
+		lines = append(lines, fmt.Sprintf("%s %-10s 0 hashed", ui.Paint(stdout, ui.ColorWarn, ui.SymbolWarning), "Schemas"))
+	} else {
+		lines = append(lines, fmt.Sprintf("%s %-10s %d hashed", ui.Paint(stdout, ui.ColorOK, ui.SymbolPass), "Schemas", captured))
+	}
 
 	lines = append(lines,
 		"",
@@ -233,9 +255,20 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 		"  "+ui.Paint(stdout, ui.ColorMuted, result.SnapshotPath),
 		"",
 		"Next:",
-		"  Ask your AI agent to make the code change, then run:",
-		"  "+ui.Paint(stdout, ui.ColorInfo, "rg check"),
 	)
+
+	if serverDown {
+		lines = append(lines,
+			"  Start your dev server, then re-snapshot routes:",
+			"  "+ui.Paint(stdout, ui.ColorInfo, "npm run dev"),
+			"  "+ui.Paint(stdout, ui.ColorInfo, "rg snapshot"),
+		)
+	} else {
+		lines = append(lines,
+			"  Ask your AI agent to make the code change, then run:",
+			"  "+ui.Paint(stdout, ui.ColorInfo, "rg check"),
+		)
+	}
 
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(stdout, line); err != nil {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/failures"
@@ -260,5 +261,169 @@ func TestRun_skippedRoutesVisible(t *testing.T) {
 	// Human output should mention skipped.
 	if !strings.Contains(stdout.String(), "skipped") {
 		t.Error("human output should mention skipped routes")
+	}
+}
+
+// TestRun_serverDown verifies E10-T2: server-down skips routes gracefully.
+func TestRun_serverDown(t *testing.T) {
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 4, 0)
+
+	// Use a URL that will not respond (port unlikely to be in use).
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   "http://127.0.0.1:19999",
+		Routes: []config.Route{
+			{Method: "GET", Path: "/api/health"},
+			{Method: "GET", Path: "/api/users"},
+		},
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("expected no error (graceful skip), got: %v", err)
+	}
+
+	// Should still save successfully.
+	if result.Status != "saved" {
+		t.Errorf("expected status 'saved', got %q", result.Status)
+	}
+
+	// ServerDown flag should be set.
+	if !result.ServerDown {
+		t.Error("expected ServerDown=true in result")
+	}
+
+	// Tests should still run.
+	if result.Tests.Passed != 4 {
+		t.Errorf("expected 4 passed tests, got %d", result.Tests.Passed)
+	}
+
+	// Routes should be empty (0 captured).
+	if len(result.Routes) != 0 {
+		t.Errorf("expected 0 routes, got %d", len(result.Routes))
+	}
+
+	// Snapshot should be saved with 0 routes.
+	if !snapshot.Exists(dir) {
+		t.Fatal("snapshot.json was not created")
+	}
+	snap, err := snapshot.Load(dir)
+	if err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	if len(snap.Routes) != 0 {
+		t.Errorf("expected 0 routes in snapshot, got %d", len(snap.Routes))
+	}
+	if snap.Tests.Passed != 4 {
+		t.Errorf("expected 4 passed tests in snapshot, got %d", snap.Tests.Passed)
+	}
+
+	// Human output should mention server not responding.
+	out := stdout.String()
+	if !strings.Contains(out, "Dev server not responding") {
+		t.Errorf("human output should mention server not responding\nGot:\n%s", out)
+	}
+	if !strings.Contains(out, "routes skipped") {
+		t.Errorf("human output should mention routes skipped\nGot:\n%s", out)
+	}
+
+	// Stderr should also have the warning.
+	errOut := stderr.String()
+	if !strings.Contains(errOut, "Dev server not responding") {
+		t.Errorf("stderr should contain server-down warning\nGot:\n%s", errOut)
+	}
+
+	// Next should suggest starting the server.
+	if !strings.Contains(result.Next, "npm run dev") {
+		t.Errorf("expected Next to suggest npm run dev, got %q", result.Next)
+	}
+}
+
+// TestRun_serverDown_json verifies E10-T2: JSON output includes serverDown flag.
+func TestRun_serverDown_json(t *testing.T) {
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 2, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   "http://127.0.0.1:19999",
+		Routes: []config.Route{
+			{Method: "GET", Path: "/api/health"},
+		},
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		JSON:        true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// stdout must be valid JSON with serverDown=true.
+	var result Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nGot:\n%s", err, stdout.String())
+	}
+	if !result.ServerDown {
+		t.Error("expected serverDown=true in JSON output")
+	}
+	if result.Status != "saved" {
+		t.Errorf("expected status 'saved', got %q", result.Status)
+	}
+}
+
+// TestRun_serverDown_completesQuickly verifies E10-T2: completes in <2s when server is down.
+func TestRun_serverDown_completesQuickly(t *testing.T) {
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 1, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   "http://127.0.0.1:19999",
+		Routes: []config.Route{
+			{Method: "GET", Path: "/api/a"},
+			{Method: "GET", Path: "/api/b"},
+			{Method: "GET", Path: "/api/c"},
+			{Method: "GET", Path: "/api/d"},
+			{Method: "GET", Path: "/api/e"},
+		},
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	start := time.Now()
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("expected completion in <2s, took %v", elapsed)
 	}
 }
