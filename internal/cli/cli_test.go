@@ -71,11 +71,37 @@ func TestCommandHelpIncludesContractSections(t *testing.T) {
 }
 
 func TestJSONModeWritesOnlyJSONToStdout(t *testing.T) {
-	chdir(t, t.TempDir())
+	// Set up a temp dir with a valid config and snapshot so rg check --json
+	// runs through the real engine and produces valid JSON on stdout.
+	dir := t.TempDir()
+	chdir(t, dir)
+
 	if err := os.MkdirAll(".regressguard", 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(".regressguard/snapshot.json", []byte("{}\n"), 0o644); err != nil {
+
+	// Write a minimal config.
+	configJSON := `{
+  "version": 1,
+  "testCommand": "echo 'Tests  3 passed'",
+  "serverUrl": "http://localhost:19999",
+  "routes": []
+}
+`
+	if err := os.WriteFile(".regressguard/config.json", []byte(configJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a minimal snapshot.
+	snapJSON := `{
+  "version": 1,
+  "createdAt": "2026-05-19T00:00:00Z",
+  "gitCommit": "abc1234",
+  "tests": {"passed": 3, "failed": 0, "skipped": 0, "durationMs": 0},
+  "routes": {}
+}
+`
+	if err := os.WriteFile(".regressguard/snapshot.json", []byte(snapJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -86,24 +112,44 @@ func TestJSONModeWritesOnlyJSONToStdout(t *testing.T) {
 	cmd.SetErr(&stderr)
 	cmd.SetArgs([]string{"check", "--json", "--verbose"})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("check --json returned error: %v", err)
-	}
+	// Run may exit 0 (pass/warning) or 1 (critical) — we only care about JSON validity.
+	_ = cmd.Execute()
 
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout.String())
 	}
-	if payload["status"] != "not_implemented" {
-		t.Fatalf("unexpected JSON status: %#v", payload["status"])
+	// Status must be one of the real statuses.
+	status, _ := payload["status"].(string)
+	validStatuses := map[string]bool{"pass": true, "warning": true, "critical": true}
+	if !validStatuses[status] {
+		t.Fatalf("unexpected JSON status: %q", status)
 	}
-	if !strings.Contains(stderr.String(), "INFO check engine not implemented yet.") {
-		t.Fatalf("verbose diagnostics should go to stderr, got: %q", stderr.String())
+	// Verbose diagnostics must go to stderr, not stdout.
+	if strings.Contains(stderr.String(), "{") {
+		t.Fatalf("stderr should not contain JSON, got: %q", stderr.String())
 	}
 }
 
 func TestMissingSnapshotIsActionable(t *testing.T) {
-	chdir(t, t.TempDir())
+	// Set up a temp dir with a valid config but no snapshot.
+	dir := t.TempDir()
+	chdir(t, dir)
+
+	if err := os.MkdirAll(".regressguard", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configJSON := `{
+  "version": 1,
+  "testCommand": "echo ok",
+  "serverUrl": "http://localhost:3000",
+  "routes": []
+}
+`
+	if err := os.WriteFile(".regressguard/config.json", []byte(configJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	cmd := NewRootCommand(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -134,7 +180,24 @@ func TestMissingSnapshotIsActionable(t *testing.T) {
 }
 
 func TestMissingSnapshotJSONIsParseable(t *testing.T) {
-	chdir(t, t.TempDir())
+	// Set up a temp dir with a valid config but no snapshot.
+	dir := t.TempDir()
+	chdir(t, dir)
+
+	if err := os.MkdirAll(".regressguard", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configJSON := `{
+  "version": 1,
+  "testCommand": "echo ok",
+  "serverUrl": "http://localhost:3000",
+  "routes": []
+}
+`
+	if err := os.WriteFile(".regressguard/config.json", []byte(configJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	cmd := NewRootCommand(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)

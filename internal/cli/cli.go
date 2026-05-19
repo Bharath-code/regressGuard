@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/regressguard/regressguard/internal/checkrun"
 	"github.com/regressguard/regressguard/internal/failures"
 	"github.com/regressguard/regressguard/internal/initrun"
 	"github.com/regressguard/regressguard/internal/snapshotrun"
@@ -142,13 +143,31 @@ func newSnapshotCommand() *cobra.Command {
 func newCheckCommand() *cobra.Command {
 	cmd := stubCommand("check", "Compare current state against the snapshot", "rg check")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if _, err := os.Stat(".regressguard/snapshot.json"); err != nil {
-			if os.IsNotExist(err) {
-				return writeActionable(cmd, failures.MissingSnapshot())
+		jsonMode, _ := cmd.Flags().GetBool("json")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		result, err := checkrun.Run(checkrun.Options{
+			ProjectRoot: ".",
+			JSON:        jsonMode,
+			Verbose:     verbose,
+			Stdout:      cmd.OutOrStdout(),
+			Stderr:      cmd.ErrOrStderr(),
+		})
+		if err != nil {
+			if issue, ok := err.(failures.Actionable); ok {
+				if jsonMode {
+					return writeActionable(cmd, issue)
+				}
+				return issue
 			}
 			return err
 		}
-		return jsonAwareStub("check", "rg check --help")(cmd, args)
+
+		// Exit code 1 on critical regression (PRD AC E4-T4, Feature 3 AC4).
+		if result.Status == "critical" {
+			os.Exit(1)
+		}
+		return nil
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")

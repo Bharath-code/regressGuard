@@ -1078,7 +1078,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | DONE |
 | E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | DONE |
 | E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | DONE |
-| E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | NOT STARTED |
+| E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | DONE |
 | E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | NOT STARTED |
 | E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | NOT STARTED |
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | NOT STARTED |
@@ -1143,16 +1143,16 @@ Goal: A user can run one command after an AI coding session and immediately know
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E4-T1 | Load snapshot | rg check fails actionably if snapshot is missing or incompatible | error fixture | NOT STARTED |
-| E4-T2 | Rerun tests/routes | Uses same config and route set as snapshot; handles unavailable server helpfully | fixture run | NOT STARTED |
-| E4-T3 | Diff tests | Newly failing tests produce CRITICAL; warning-only cases exit 0 | unit test | NOT STARTED |
-| E4-T4 | Diff status codes | 2xx to 4xx/5xx and 2xx to non-2xx changes are reported clearly | fixture route diff | NOT STARTED |
-| E4-T5 | Diff schemas | Removed fields are CRITICAL; added/optional fields are WARNING by default | schema diff tests | NOT STARTED |
-| E4-T6 | Diff timings | Timing warning triggers only when threshold rules are met | timing unit tests | NOT STARTED |
-| E4-T7 | Human pass screen | Flow E appears for clean checks; exit code 0 | terminal screenshot | NOT STARTED |
-| E4-T8 | Human warning screen | Flow G appears for warning-only checks; exit code 0 | terminal screenshot | NOT STARTED |
-| E4-T9 | Human critical screen | Flow F appears for critical regressions; exit code 1 | terminal screenshot | NOT STARTED |
-| E4-T10 | JSON check output | rg check --json schema is stable and parseable; --verbose stays on stderr | jq parse proof | NOT STARTED |
+| E4-T1 | Load snapshot | rg check fails actionably if snapshot is missing or incompatible | `TestRun_missingConfig`, `TestRun_missingSnapshot`, `TestRun_incompatibleSnapshotVersion` pass; `./bin/rg check` exits 2 with cause + `rg init`; `./bin/rg check --json` parses with `jq` | DONE |
+| E4-T2 | Rerun tests/routes | Uses same config and route set as snapshot; handles unavailable server helpfully | `TestRun_passScreen`, `TestRun_criticalScreen_statusChange` pass; checkrun.Run reruns engine.RunTests + engine.HitRoutes | DONE |
+| E4-T3 | Diff tests | Newly failing tests produce CRITICAL; warning-only cases exit 0 | `TestDiffSnapshots_testRegression_critical`, `TestDiffSnapshots_sameFailCount_noRegression`, `TestRun_criticalScreen_testRegression` pass | DONE |
+| E4-T4 | Diff status codes | 2xx to 4xx/5xx and 2xx to non-2xx changes are reported clearly | `TestDiffSnapshots_statusChange_critical`, `TestDiffSnapshots_statusUnchanged_noRegression` pass; critical screen shows Before/After/Change table | DONE |
+| E4-T5 | Diff schemas | Removed fields are CRITICAL; added/optional fields are WARNING by default | `TestDiffSnapshots_schemaChange_critical`, `TestDiffSnapshots_schemaUnchanged_noRegression` pass | DONE |
+| E4-T6 | Diff timings | Timing warning triggers only when threshold rules are met | `TestDiffSnapshots_timingRegression_warning`, `TestDiffSnapshots_timingSmallDelta_noWarning`, `TestDiffSnapshots_timingLargeDeltaSmallPercent_noWarning` pass | DONE |
+| E4-T7 | Human pass screen | Flow E appears for clean checks; exit code 0 | `TestRun_passScreen` pass; output contains "Check", "Safe to commit." | DONE |
+| E4-T8 | Human warning screen | Flow G appears for warning-only checks; exit code 0 | `TestRun_warningScreen_render` pass; output contains "!", "non-blocking", "Commit allowed." | DONE |
+| E4-T9 | Human critical screen | Flow F appears for critical regressions; exit code 1 | `TestRun_criticalScreen_statusChange`, `TestRun_criticalScreen_testRegression` pass; output contains "X", "Commit blocked."; `os.Exit(1)` on critical | DONE |
+| E4-T10 | JSON check output | rg check --json schema is stable and parseable; --verbose stays on stderr | `TestRun_jsonOutput_pass`, `TestRun_jsonOutput_critical`, `TestRun_jsonOutput_verboseStaysOnStderr`, `TestJSONModeWritesOnlyJSONToStdout` pass; schema: `{status, summary{critical,warnings,passed}, results[], next}` | DONE |
 
 ## **11.8 Epic E5: Git Hook**
 
