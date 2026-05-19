@@ -10,6 +10,7 @@ import (
 
 	"github.com/regressguard/regressguard/internal/failures"
 	"github.com/regressguard/regressguard/internal/initrun"
+	"github.com/regressguard/regressguard/internal/snapshotrun"
 	"github.com/regressguard/regressguard/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -112,13 +113,26 @@ func newInitCommand() *cobra.Command {
 func newSnapshotCommand() *cobra.Command {
 	cmd := stubCommand("snapshot", "Record the current passing state", "rg snapshot")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if _, err := os.Stat(".regressguard/config.json"); err != nil {
-			if os.IsNotExist(err) {
-				return writeActionable(cmd, failures.MissingConfig())
+		jsonMode, _ := cmd.Flags().GetBool("json")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		_, err := snapshotrun.Run(snapshotrun.Options{
+			ProjectRoot: ".",
+			JSON:        jsonMode,
+			Verbose:     verbose,
+			Stdout:      cmd.OutOrStdout(),
+			Stderr:      cmd.ErrOrStderr(),
+		})
+		if err != nil {
+			if issue, ok := err.(failures.Actionable); ok {
+				if jsonMode {
+					return writeActionable(cmd, issue)
+				}
+				return issue
 			}
 			return err
 		}
-		return jsonAwareStub("snapshot", "rg snapshot --help")(cmd, args)
+		return nil
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write diagnostics to stderr")

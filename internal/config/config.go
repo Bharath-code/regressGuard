@@ -46,6 +46,19 @@ func Exists(root string) bool {
 	return err == nil
 }
 
+// Load reads and parses the config file from the project root.
+func Load(root string) (Config, error) {
+	data, err := os.ReadFile(Path(root))
+	if err != nil {
+		return Config{}, err
+	}
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
 func Write(root string, cfg Config) error {
 	dir := filepath.Join(root, DirName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

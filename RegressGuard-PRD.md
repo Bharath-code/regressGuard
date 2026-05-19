@@ -1077,7 +1077,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | :---- | :---- | :---- | :---- | :---- |
 | E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | DONE |
 | E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | DONE |
-| E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | NOT STARTED |
+| E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | DONE |
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | NOT STARTED |
 | E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | NOT STARTED |
 | E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | NOT STARTED |
@@ -1128,14 +1128,14 @@ Goal: A user can capture a reliable known-good baseline before using an AI codin
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E3-T1 | Load config | rg snapshot validates config and suggests rg init if missing | command output | NOT STARTED |
-| E3-T2 | Run tests | Executes configured test command; captures passed/failed counts and duration | test fixture output | NOT STARTED |
-| E3-T3 | Discover Next.js routes | Finds app/api/**/route.ts GET routes for v1; records method/path | fixture project | NOT STARTED |
-| E3-T4 | Hit routes | Calls configured dev server with timeout and optional auth headers | local fixture server | NOT STARTED |
-| E3-T5 | Normalize schemas | Converts JSON responses into stable type shapes and hashes them | unit tests with dynamic fields | NOT STARTED |
-| E3-T6 | Save snapshot | Writes .regressguard/snapshot.json with timestamp, git hash, tests, routes, schemas, timings | snapshot fixture | NOT STARTED |
-| E3-T7 | Snapshot screen | Human output matches Flow D; skipped routes are visible but not alarming | terminal screenshot | NOT STARTED |
-| E3-T8 | Snapshot JSON | rg snapshot --json outputs parseable machine result only on stdout | jq parse proof | NOT STARTED |
+| E3-T1 | Load config | rg snapshot validates config and suggests rg init if missing | command output | DONE |
+| E3-T2 | Run tests | Executes configured test command; captures passed/failed counts and duration | test fixture output | DONE |
+| E3-T3 | Discover Next.js routes | Finds app/api/**/route.ts GET routes for v1; records method/path | fixture project | DONE |
+| E3-T4 | Hit routes | Calls configured dev server with timeout and optional auth headers | local fixture server | DONE |
+| E3-T5 | Normalize schemas | Converts JSON responses into stable type shapes and hashes them | unit tests with dynamic fields | DONE |
+| E3-T6 | Save snapshot | Writes .regressguard/snapshot.json with timestamp, git hash, tests, routes, schemas, timings | snapshot fixture | DONE |
+| E3-T7 | Snapshot screen | Human output matches Flow D; skipped routes are visible but not alarming | terminal screenshot | DONE |
+| E3-T8 | Snapshot JSON | rg snapshot --json outputs parseable machine result only on stdout | jq parse proof | DONE |
 
 ## **11.7 Epic E4: Regression Check**
 
