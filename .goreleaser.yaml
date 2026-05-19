@@ -1,0 +1,75 @@
+version: 2
+
+project_name: regressguard
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: rg
+    main: ./cmd/rg
+    binary: rg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: rg
+    name_template: "rg_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: Bharath-code
+    name: regressguard
+  draft: false
+  prerelease: auto
+  name_template: "rg {{.Version}}"
+  header: |
+    ## RegressGuard {{.Version}}
+
+    Before you commit, know what broke.
+
+    ### Install
+
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh
+    ```
+
+    Or download the binary for your platform from the assets below and place it in your PATH.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/regressguard/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/config"
 )
 
 // --- E6-T1: Dynamic field auto-ignore ---

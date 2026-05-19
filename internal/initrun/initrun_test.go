@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/regressguard/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/config"
 )
 
 func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {

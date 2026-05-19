@@ -8,12 +8,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/regressguard/regressguard/internal/checkrun"
-	"github.com/regressguard/regressguard/internal/failures"
-	"github.com/regressguard/regressguard/internal/hookrun"
-	"github.com/regressguard/regressguard/internal/initrun"
-	"github.com/regressguard/regressguard/internal/snapshotrun"
-	"github.com/regressguard/regressguard/internal/ui"
+	"github.com/Bharath-code/regressguard/internal/checkrun"
+	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/hookrun"
+	"github.com/Bharath-code/regressguard/internal/initrun"
+	"github.com/Bharath-code/regressguard/internal/snapshotrun"
+	"github.com/Bharath-code/regressguard/internal/ui"
 	"github.com/spf13/cobra"
 )
 

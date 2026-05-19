@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/regressguard/regressguard/internal/config"
-	"github.com/regressguard/regressguard/internal/failures"
-	"github.com/regressguard/regressguard/internal/snapshot"
+	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/snapshot"
 )
 
 // makeProject creates a temp directory with a minimal .regressguard/config.json.

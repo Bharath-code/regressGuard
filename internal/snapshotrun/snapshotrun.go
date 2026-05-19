@@ -11,11 +11,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/regressguard/regressguard/internal/config"
-	"github.com/regressguard/regressguard/internal/engine"
-	"github.com/regressguard/regressguard/internal/failures"
-	"github.com/regressguard/regressguard/internal/snapshot"
-	"github.com/regressguard/regressguard/internal/ui"
+	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/engine"
+	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/snapshot"
+	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
 // Options configures a snapshot run.

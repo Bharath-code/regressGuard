@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/regressguard/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/config"
 )
 
 func TestHitRoutes_basicGET(t *testing.T) {

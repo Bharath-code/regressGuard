@@ -1,4 +1,4 @@
-module github.com/regressguard/regressguard
+module github.com/Bharath-code/regressguard
 
 go 1.22
 

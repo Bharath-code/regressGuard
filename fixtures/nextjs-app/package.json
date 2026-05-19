@@ -1,0 +1,21 @@
+{
+  "name": "regressguard-fixture",
+  "version": "1.0.0",
+  "description": "Minimal Next.js API fixture for RegressGuard demos and regression tests",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "14.2.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.1",
+    "vitest": "1.6.0"
+  }
+}

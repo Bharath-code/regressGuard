@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/regressguard/regressguard/internal/config"
-	"github.com/regressguard/regressguard/internal/failures"
-	"github.com/regressguard/regressguard/internal/scanner"
-	"github.com/regressguard/regressguard/internal/ui"
+	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/scanner"
+	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
 const DefaultServerURL = "http://localhost:3000"

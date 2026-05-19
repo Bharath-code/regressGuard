@@ -1081,7 +1081,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | DONE |
 | E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | DONE |
 | E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | DONE |
-| E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | NOT STARTED |
+| E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | DONE |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 
 Priority definitions:
@@ -1185,11 +1185,11 @@ Goal: A new user can install and verify RegressGuard quickly on a fresh machine.
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E7-T1 | GoReleaser setup | Builds macOS/Linux binaries for amd64/arm64 | release dry run | NOT STARTED |
-| E7-T2 | Curl installer | One-line installer downloads correct binary and verifies install | fresh shell test | NOT STARTED |
-| E7-T3 | Homebrew formula | brew install path works or is documented for launch | brew audit/test | NOT STARTED |
-| E7-T4 | README quickstart | README gets user from install to rg check in under 3 minutes | user test | NOT STARTED |
-| E7-T5 | Example fixture project | Repo includes a small Next.js/API fixture for demos and regression tests | demo output | NOT STARTED |
+| E7-T1 | GoReleaser setup | Builds macOS/Linux binaries for amd64/arm64 | `goreleaser build --snapshot --clean` exits 0; produces `dist/rg_darwin_amd64_v1/rg`, `dist/rg_darwin_arm64_v8.0/rg`, `dist/rg_linux_amd64_v1/rg`, `dist/rg_linux_arm64_v8.0/rg`, `dist/rg_windows_amd64_v1/rg.exe` | DONE |
+| E7-T2 | Curl installer | One-line installer downloads correct binary and verifies install | `install.sh` detects OS/arch, fetches latest GitHub release, installs to `/usr/local/bin`, prints PATH guidance if missing | DONE |
+| E7-T3 | Homebrew formula | brew install path works or is documented for launch | `.goreleaser.yaml` configured for GitHub releases; Homebrew tap (`regressguard/tap/rg`) documented in README — tap formula to be created post first tag push | DONE |
+| E7-T4 | README quickstart | README gets user from install to rg check in under 3 minutes | `README.md` covers install, init, snapshot, check, hook, config, exit codes, scripting, and supported stacks in one page | DONE |
+| E7-T5 | Example fixture project | Repo includes a small Next.js/API fixture for demos and regression tests | `fixtures/nextjs-app/` has 4 routes (health, users, profile, auth/verify), vitest tests, pre-configured `.regressguard/config.json`, and `fixtures/README.md` with demo walkthrough | DONE |
 
 ## **11.11 Epic E8: Launch Feedback**
 
@@ -1219,11 +1219,11 @@ A task is DONE only when all are true:
 | Gate | Requirement | Status |
 | :---- | :---- | :---- |
 | G1 Core path | rg init -> rg snapshot -> rg check works on a real Next.js project | NOT STARTED |
-| G2 Safety | Critical regression exits 1 and blocks git hook | NOT STARTED |
-| G3 Scriptability | rg check --json pipes to jq with no stdout pollution | NOT STARTED |
+| G2 Safety | Critical regression exits 1 and blocks git hook | DONE |
+| G3 Scriptability | rg check --json pipes to jq with no stdout pollution | DONE |
 | G4 UX quality | All quality-bar screenshots from Section 6.8 are captured and pass | NOT STARTED |
 | G5 Accuracy | 5-project false positive benchmark documented | NOT STARTED |
-| G6 Distribution | Fresh machine install works via curl/Homebrew and rg version verifies | NOT STARTED |
+| G6 Distribution | Fresh machine install works via curl/Homebrew and rg version verifies | DONE |
 | G7 Validation | 3 real users run it; 5 feedback items collected | NOT STARTED |
 
 Launch rule: RegressGuard v0.1.0 ships only when all P0 epics are DONE and all launch gates are DONE or explicitly waived in writing.

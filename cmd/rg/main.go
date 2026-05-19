@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/regressguard/regressguard/internal/cli"
+	"github.com/Bharath-code/regressguard/internal/cli"
 )
 
 var (
