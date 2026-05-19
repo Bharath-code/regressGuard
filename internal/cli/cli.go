@@ -29,7 +29,22 @@ func Execute(build BuildInfo) error {
 	root := NewRootCommand(build)
 	if err := root.Execute(); err != nil {
 		if !isSilentError(err) {
-			_, _ = fmt.Fprintln(root.ErrOrStderr(), err)
+			stderr := root.ErrOrStderr()
+			if issue, ok := err.(failures.Actionable); ok {
+				// Colored actionable error.
+				_, _ = fmt.Fprintln(stderr, ui.Paint(stderr, ui.ColorFail, issue.Title))
+				_, _ = fmt.Fprintln(stderr)
+				_, _ = fmt.Fprintln(stderr, "Likely cause:")
+				_, _ = fmt.Fprintln(stderr, "  "+issue.Cause)
+				_, _ = fmt.Fprintln(stderr)
+				_, _ = fmt.Fprintln(stderr, "Run:")
+				_, _ = fmt.Fprintln(stderr, "  "+ui.Paint(stderr, ui.ColorInfo, issue.Next))
+				_, _ = fmt.Fprintln(stderr)
+				_, _ = fmt.Fprintln(stderr, "Need more context:")
+				_, _ = fmt.Fprintln(stderr, "  "+ui.Paint(stderr, ui.ColorInfo, issue.MoreContext))
+			} else {
+				_, _ = fmt.Fprintln(stderr, err)
+			}
 		}
 		return err
 	}

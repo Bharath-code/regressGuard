@@ -1084,6 +1084,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | DONE |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 | E9 10x Value Improvements | Field diff, fast server detection, git context, tight hook output | Section 11.11 | P0 | DONE |
+| E10 Launch Polish | Colored output, parallel routes, server-down in snapshot, Express discovery, snapshot age warning | Section 11.12 | P1 | NOT STARTED |
 
 Priority definitions:
 
@@ -1203,7 +1204,20 @@ Goal: Close the gap between "useful" and "I can't work without this." Four targe
 | E9-T3 | Git context alongside regressions | When regressions are found, show which files changed since the snapshot commit | `gitChangedFiles()` runs `git diff --name-only <snapshot-commit>`; critical screen appends "Changed files since snapshot:" with top 5 files; gracefully skipped when git unavailable | DONE |
 | E9-T4 | Tighter hook output (Flow I exact) | Pre-commit hook output matches Flow I: header, finding count, one next command, bypass line — under 8 lines total | Hook script sets `RG_HOOK=1`; `checkrun.Run` detects env var and calls `writeHook()`; compact output: header, count, top finding, next command, bypass — under 8 lines | DONE |
 
-## **11.12 Epic E8: Launch Feedback**
+## **11.12 Epic E10: Launch Polish**
+
+Goal: Eliminate the remaining friction points and visual gaps before real users see the tool. Colored output, parallel routes, server-down handling in snapshot, and snapshot age warnings.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E10-T1 | Colored TTY output | Pass/warning/critical screens use green/yellow/red ANSI colors when stdout is a TTY; colors disabled for NO_COLOR, FORCE_COLOR=0, TERM=dumb, non-TTY, and --json | `NO_COLOR=1 rg check` has 0 ANSI codes; piped output has 0 ANSI codes; `ui.Paint()` applied to symbols, status lines, headers, field diffs, and next-step commands; all tests pass with `bytes.Buffer` (no color injected) | DONE |
+| E10-T2 | Snapshot server-down handling | `rg snapshot` probes the dev server before hitting routes; if unreachable, skips route phase gracefully with a warning instead of failing or timing out per-route | `rg snapshot` with server down completes in <2s; output shows "! Dev server not responding — routes skipped"; tests still run; snapshot is saved with 0 routes | NOT STARTED |
+| E10-T3 | Parallel route hitting | Routes are hit concurrently (max 5 goroutines) instead of sequentially; reduces snapshot/check time for projects with 10+ routes | Benchmark: 10 routes complete in <3s instead of 10s; concurrency limit prevents server overload; results are deterministic (same order as config) | NOT STARTED |
+| E10-T4 | Snapshot age warning | `rg check` prints a non-blocking warning when the snapshot is older than 24 hours | Output shows "! Snapshot is 3d old. Consider running rg snapshot for a fresh baseline." when stale; does not affect exit code; suppressed in --json mode (goes to stderr) | NOT STARTED |
+| E10-T5 | Express route discovery | `rg init` detects Express/Hono route patterns (`app.get`, `router.get`, etc.) via simple regex scan of source files; records discovered routes in config | Unit tests with Express fixture files; `rg init` in Express project discovers `/api/users`, `/api/health` routes; framework recorded as "express" | NOT STARTED |
+| E10-T6 | `rg snapshot` accept-change flow | When `rg check` finds an intentional schema change, the critical screen suggests `rg snapshot` as the "accept this change" action | Critical screen includes "If this change is intentional: rg snapshot" in the Next section | NOT STARTED |
+
+## **11.13 Epic E8: Launch Feedback**
 
 Goal: Validate demand and usability with real developers before expanding scope.
 
@@ -1215,7 +1229,7 @@ Goal: Validate demand and usability with real developers before expanding scope.
 | E8-T4 | Usage proof | At least 3 real developers run rg check on their own project | screenshots/testimonials | NOT STARTED |
 | E8-T5 | Payment signal | Ask every active tester if they would pay or sponsor; record answer | feedback log | NOT STARTED |
 
-## **11.13 Definition of Done**
+## **11.14 Definition of Done**
 
 A task is DONE only when all are true:
 
@@ -1226,7 +1240,7 @@ A task is DONE only when all are true:
 5. Errors include a next action.
 6. Evidence is captured in the PRD status table or linked implementation notes.
 
-## **11.14 Launch Gates**
+## **11.15 Launch Gates**
 
 | Gate | Requirement | Status |
 | :---- | :---- | :---- |
@@ -1240,7 +1254,7 @@ A task is DONE only when all are true:
 
 Launch rule: RegressGuard v0.1.0 ships only when all P0 epics are DONE and all launch gates are DONE or explicitly waived in writing.
 
-## **11.15 Change Control**
+## **11.16 Change Control**
 
 Any new request must be classified before implementation:
 

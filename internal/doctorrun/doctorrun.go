@@ -105,25 +105,28 @@ func Run(opts Options) bool {
 	_, _ = fmt.Fprintln(opts.Stdout)
 
 	if allOK {
-		_, _ = fmt.Fprintln(opts.Stdout, "All checks passed. Ready to use rg snapshot and rg check.")
+		_, _ = fmt.Fprintln(opts.Stdout, ui.Paint(opts.Stdout, ui.ColorOK, "All checks passed.")+" Ready to use rg snapshot and rg check.")
 	} else {
 		_, _ = fmt.Fprintln(opts.Stdout, "Some checks failed. Fix the issues above, then rerun:")
-		_, _ = fmt.Fprintln(opts.Stdout, "  rg doctor")
+		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "rg doctor"))
 	}
 
 	return allOK
 }
 
 func printPass(w io.Writer, label, detail string) {
-	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", ui.SymbolPass, label, detail)
+	sym := ui.Paint(w, ui.ColorOK, ui.SymbolPass)
+	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", sym, label, detail)
 }
 
 func printFail(w io.Writer, label, detail string) {
-	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", ui.SymbolCritical, label, detail)
+	sym := ui.Paint(w, ui.ColorFail, ui.SymbolCritical)
+	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", sym, label, detail)
 }
 
 func printWarn(w io.Writer, label, detail string) {
-	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", ui.SymbolWarning, label, detail)
+	sym := ui.Paint(w, ui.ColorWarn, ui.SymbolWarning)
+	_, _ = fmt.Fprintf(w, "%s %-14s %s\n", sym, label, detail)
 }
 
 func gitAvailable(root string) bool {

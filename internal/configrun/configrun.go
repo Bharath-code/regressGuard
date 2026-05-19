@@ -11,6 +11,7 @@ import (
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
 // Get reads a config value by key and writes it to stdout.
@@ -55,8 +56,8 @@ func Set(key, value, root string, stdout io.Writer) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(stdout, "OK Set %s = %s\n", key, value)
-	_, _ = fmt.Fprintf(stdout, "   %s\n", config.Path(root))
+	_, _ = fmt.Fprintf(stdout, "%s Set %s = %s\n", ui.Paint(stdout, ui.ColorOK, "OK"), key, value)
+	_, _ = fmt.Fprintf(stdout, "   %s\n", ui.Paint(stdout, ui.ColorMuted, config.Path(root)))
 	return nil
 }
 

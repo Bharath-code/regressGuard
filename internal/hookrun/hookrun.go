@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
 const (
@@ -80,8 +82,8 @@ func Install(opts InstallOptions) (string, error) {
 		return "", fmt.Errorf("write pre-commit hook: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(opts.Stdout, "OK Installed pre-commit hook\n")
-	_, _ = fmt.Fprintf(opts.Stdout, "   %s\n", hookPath)
+	_, _ = fmt.Fprintf(opts.Stdout, "%s Installed pre-commit hook\n", ui.Paint(opts.Stdout, ui.ColorOK, "OK"))
+	_, _ = fmt.Fprintf(opts.Stdout, "   %s\n", ui.Paint(opts.Stdout, ui.ColorMuted, hookPath))
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "Behavior:\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "  rg check runs before every commit.\n")
@@ -89,10 +91,10 @@ func Install(opts InstallOptions) (string, error) {
 	_, _ = fmt.Fprintf(opts.Stdout, "  Warnings allow the commit through.\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "Bypass (emergencies only):\n")
-	_, _ = fmt.Fprintf(opts.Stdout, "  git commit --no-verify\n")
+	_, _ = fmt.Fprintf(opts.Stdout, "  %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "git commit --no-verify"))
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "Uninstall:\n")
-	_, _ = fmt.Fprintf(opts.Stdout, "  rg hook uninstall\n")
+	_, _ = fmt.Fprintf(opts.Stdout, "  %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "rg hook uninstall"))
 
 	return hookPath, nil
 }
@@ -110,7 +112,7 @@ func Uninstall(opts UninstallOptions) error {
 	}
 
 	if !containsBlock(existing) {
-		_, _ = fmt.Fprintf(opts.Stdout, "i No RegressGuard hook block found in %s\n", hookPath)
+		_, _ = fmt.Fprintf(opts.Stdout, "%s No RegressGuard hook block found in %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "i"), hookPath)
 		return nil
 	}
 
@@ -121,8 +123,8 @@ func Uninstall(opts UninstallOptions) error {
 		if err := os.Remove(hookPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove hook file: %w", err)
 		}
-		_, _ = fmt.Fprintf(opts.Stdout, "OK Removed pre-commit hook\n")
-		_, _ = fmt.Fprintf(opts.Stdout, "   %s deleted (was empty after removal)\n", hookPath)
+		_, _ = fmt.Fprintf(opts.Stdout, "%s Removed pre-commit hook\n", ui.Paint(opts.Stdout, ui.ColorOK, "OK"))
+		_, _ = fmt.Fprintf(opts.Stdout, "   %s deleted (was empty after removal)\n", ui.Paint(opts.Stdout, ui.ColorMuted, hookPath))
 		return nil
 	}
 
@@ -130,7 +132,7 @@ func Uninstall(opts UninstallOptions) error {
 		return fmt.Errorf("write pre-commit hook: %w", err)
 	}
 
-	_, _ = fmt.Fprintf(opts.Stdout, "OK Removed RegressGuard block from %s\n", hookPath)
+	_, _ = fmt.Fprintf(opts.Stdout, "%s Removed RegressGuard block from %s\n", ui.Paint(opts.Stdout, ui.ColorOK, "OK"), hookPath)
 	return nil
 }
 

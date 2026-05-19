@@ -202,10 +202,10 @@ func loadConfig(root string) (config.Config, error) {
 
 // writeHuman renders the Flow D snapshot screen.
 func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, testDuration time.Duration) error {
-	_ = stderr // reserved for future progress output
+	_ = stderr
 
 	lines := []string{
-		"Snapshot",
+		ui.Paint(stdout, ui.ColorBold, "Snapshot"),
 		"",
 	}
 
@@ -215,26 +215,26 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 		testLine += fmt.Sprintf(", %d skipped", result.Tests.Skipped)
 	}
 	testLine += fmt.Sprintf("   %s", fmtDuration(testDuration))
-	lines = append(lines, ui.SymbolPass+" "+testLine)
+	lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+testLine)
 
 	// Routes line.
 	routeLine := fmt.Sprintf("%-10s %d captured", "Routes", captured)
 	if skipped > 0 {
 		routeLine += fmt.Sprintf(", %d skipped", skipped)
 	}
-	lines = append(lines, ui.SymbolPass+" "+routeLine)
+	lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+routeLine)
 
 	// Schemas line.
-	lines = append(lines, fmt.Sprintf("%s %-10s %d hashed", ui.SymbolPass, "Schemas", captured))
+	lines = append(lines, fmt.Sprintf("%s %-10s %d hashed", ui.Paint(stdout, ui.ColorOK, ui.SymbolPass), "Schemas", captured))
 
 	lines = append(lines,
 		"",
 		"Saved:",
-		"  "+result.SnapshotPath,
+		"  "+ui.Paint(stdout, ui.ColorMuted, result.SnapshotPath),
 		"",
 		"Next:",
 		"  Ask your AI agent to make the code change, then run:",
-		"  rg check",
+		"  "+ui.Paint(stdout, ui.ColorInfo, "rg check"),
 	)
 
 	for _, line := range lines {
