@@ -58,7 +58,7 @@ But speed without safety creates a new category of failure: silent regressions. 
 | :---- | :---- |
 | **Billing Model** | API billing (not flat subscription) — they feel every token spent |
 | **Experience** | Been burned by a silent regression at least once |
-| **Stack** | Node.js / Bun / TypeScript — Next.js, Express, Hono, Vitest, Jest |
+| **Stack** | Go CLI targeting Node.js / Bun / TypeScript projects — Next.js, Express, Hono, Vitest, Jest |
 | **Psychographic** | Not cheap — uncertain. They will spend money if they know what they get |
 | **Location** | Global — India-first for marketing, English-first for product |
 
@@ -141,6 +141,8 @@ Ruthlessly minimal. Only what is needed to catch regressions for real projects.
 | **AC 4** | Generates valid config.json in under 3 seconds |
 | **AC 5** | Asks user for dev server URL if not auto-detected (localhost:3000 default) |
 | **AC 6** | Works on a fresh project with zero prior configuration |
+| **AC 7** | Detects TTY vs non-TTY: uses guided prompts for humans, never hangs in scripts/agents |
+| **AC 8** | Non-interactive mode prints the required next command or flag instead of prompting |
 
 ### **Feature 2: rg snapshot**
 
@@ -154,6 +156,8 @@ Ruthlessly minimal. Only what is needed to catch regressions for real projects.
 | **AC 5** | Stores snapshot to .regressguard/snapshot.json — human readable |
 | **AC 6** | Handles auth via config-defined test token (Authorization header) |
 | **AC 7** | Gracefully skips routes that require body params it cannot infer |
+| **AC 8** | Supports --json for clean machine-readable output on stdout |
+| **AC 9** | Progress, warnings, and verbose details go to stderr, never stdout |
 
 ### **Feature 3: rg check**
 
@@ -168,6 +172,9 @@ Ruthlessly minimal. Only what is needed to catch regressions for real projects.
 | **AC 6** | Total runtime under 20 seconds for standard projects |
 | **AC 7** | Output is human-readable and copy-pasteable for bug reports |
 | **AC 8** | False positive rate under 5% on standard Next.js/Express projects |
+| **AC 9** | Supports --json for structured results and stable agent/script parsing |
+| **AC 10** | Supports --verbose for route-level request/response metadata on stderr |
+| **AC 11** | All failures include what broke, likely cause, and a copy-pasteable next action |
 
 ### **Feature 4: Git Hook Integration**
 
@@ -178,6 +185,21 @@ Ruthlessly minimal. Only what is needed to catch regressions for real projects.
 | **AC 2** | Blocks commit if CRITICAL regressions found |
 | **AC 3** | Allows \--no-verify bypass for emergencies |
 | **AC 4** | Works with husky and lint-staged setups |
+| **AC 5** | Hook output is short by default and suggests rg check --verbose for deeper diagnostics |
+
+### **Feature 5: CLI Foundation**
+
+| Command | rg --help, rg version, rg config, rg doctor |
+| :---- | :---- |
+| **Purpose** | Make the CLI self-documenting, scriptable, and easy to debug |
+| **AC 1** | rg --help shows compact top-level command groups only |
+| **AC 2** | rg <command> --help shows flags, examples, exit codes, and agent-friendly guidance |
+| **AC 3** | rg config get/set supports common fields like serverUrl, testCommand, auth.testToken, ignoreFields |
+| **AC 4** | rg doctor verifies config, snapshot presence, test command availability, and dev server reachability |
+| **AC 5** | rg version prints version, commit, build date, OS, and architecture |
+| **AC 6** | Shell completions are available for zsh, bash, and fish |
+| **AC 7** | CLI screens follow the RegressGuard terminal design system for colors, spacing, symbols, and next-step layout |
+| **AC 8** | Default happy-path screens fit in one terminal viewport at 80 columns |
 
 ## **5.2 v2 Features (Month 2-3)**
 
@@ -196,35 +218,495 @@ Ruthlessly minimal. Only what is needed to catch regressions for real projects.
 | **Compliance Reports** | PDF audit trail of AI-generated code changes for regulated industries |
 | **Multi-agent Support** | Track sessions across Cursor, Claude Code, Codex simultaneously |
 
-# **6\. Technology Stack**
+# **6\. CLI UX Principles**
 
-## **6.1 Stack Decisions**
+RegressGuard is used by both humans and AI coding agents. The CLI must be easy to explore step-by-step, safe to script, and impossible to confuse with noisy output.
+
+## **6.1 Progressive Disclosure**
+
+| Principle | Requirement |
+| :---- | :---- |
+| Top-level help stays small | rg --help shows only high-level command groups: init, snapshot, check, hook, config, version |
+| Drill-down is exhaustive | rg check --help shows all check-specific flags, examples, exit codes, and JSON schema notes |
+| Noun-verb structure | Prefer rg hook install, rg config set, rg snapshot create over ambiguous action soup |
+| Agent-friendly discovery | Help text explicitly says agents should prefer --help over hardcoded command knowledge |
+| No context bloat | Default output avoids dumping full route lists, raw responses, or config unless requested |
+
+## **6.2 Actionable Errors**
+
+Every error must include:
+
+1. What went wrong.
+2. The likely cause.
+3. A copy-pasteable next action.
+4. A deeper debugging path, usually --verbose or --help.
+
+Examples:
+
+Missing snapshot:
+
+rg check failed: no snapshot found.
+
+Run this first:
+
+  rg snapshot
+
+Need more context:
+
+  rg check --help
+
+Route returned 401:
+
+GET /api/auth/verify returned 401, but the snapshot expected 200.
+
+Likely cause: this route needs auth, and no test token/cookie is configured.
+
+Try:
+
+  rg config set auth.testToken <TOKEN>
+
+Then rerun:
+
+  rg snapshot
+
+## **6.3 Data vs Messages**
+
+| Stream | Allowed Content |
+| :---- | :---- |
+| stdout | Final human report by default, or clean JSON only when --json is used |
+| stderr | Progress, warnings, verbose logs, request metadata, troubleshooting hints |
+
+Rules:
+
+1. When --json is used, stdout must contain valid JSON and nothing else.
+2. ANSI colors are disabled automatically when stdout is not a TTY.
+3. --verbose writes diagnostics to stderr so rg check --json \| jq remains safe.
+4. Exit codes carry automation meaning: 0 pass/warnings only, 1 critical regression, 2 usage/config/runtime error.
+
+## **6.4 Interactive vs Non-Interactive**
+
+RegressGuard detects whether stdin/stdout are attached to a TTY.
+
+| Mode | Behavior |
+| :---- | :---- |
+| Interactive human | rg init can use Bubble Tea/huh prompts, selections, confirmation, and friendly formatting |
+| Non-interactive agent/script | No prompts, no hanging flows, no required keyboard interaction |
+| Missing input | Print the exact flag or command needed to continue |
+| CI/git hook | Short output by default, with --verbose suggested for diagnosis |
+
+## **6.5 Terminal Design System**
+
+RegressGuard should feel like a serious infrastructure tool: calm, precise, fast, and trustworthy. The visual language is closer to GitHub CLI, Vercel CLI, Stripe CLI, pnpm, and Charm tools than to a playful full-screen app.
+
+### **Design Goals**
+
+| Goal | Rule |
+| :---- | :---- |
+| Reduce friction | Every screen must answer: what happened, what matters, what should I run next |
+| Preserve trust | Never hide critical detail behind decoration; design clarifies state |
+| Respect agents | Human styling must collapse cleanly into structured output and short help |
+| Reward good flow | Successful setup/checks should feel fast and decisive, not chatty |
+| Avoid CLI fatigue | No walls of text, no noisy banners, no forced full-screen TUI |
+
+### **Typography**
+
+| Token | Terminal Rendering | Usage |
+| :---- | :---- | :---- |
+| Font family | User terminal default; recommend Geist Mono, JetBrains Mono, SF Mono, or IBM Plex Mono in docs/screenshots | All CLI output |
+| Brand wordmark | Bold monospace text, no ASCII art banner by default | rg --help, rg init header |
+| Section label | Bold, Title Case, max 24 chars | Summary, Regressions, Next Steps |
+| Body | Regular monospace | Descriptions and hints |
+| Data/code | Monospace, dim or neutral | Routes, commands, paths, hashes |
+| Numbers | Monospace tabular alignment | Counts, timings, deltas |
+
+### **Color Tokens**
+
+Colors must work in dark and light terminals. Use semantic ANSI colors only, with no gradients, glow, or oversaturated effects.
+
+| Token | ANSI | Hex Reference | Usage |
+| :---- | :---- | :---- | :---- |
+| rg.ok | Green | #2DA44E | Pass, installed, completed |
+| rg.warn | Yellow | #B88700 | Warning, skipped route, timing risk |
+| rg.fail | Red | #CF222E | Critical regression, blocked commit |
+| rg.info | Cyan/Blue | #0969DA | Links, commands, active step |
+| rg.muted | Bright Black/Gray | #6E7781 | Metadata, paths, secondary hints |
+| rg.text | Default foreground | terminal default | Primary copy |
+| rg.border | Dim gray | #8C959F | Tables, separators |
+
+Rules:
+
+1. Respect NO_COLOR, FORCE_COLOR, TERM=dumb, and non-TTY output.
+2. Use color plus text labels, never color alone.
+3. Keep one accent at a time. A critical screen should not also contain blue/yellow decoration.
+4. Do not print emoji. Use ASCII symbols and text labels.
+
+### **Symbols**
+
+| Meaning | Symbol | Text Label |
+| :---- | :---- | :---- |
+| Pass | OK | PASS |
+| Warning | ! | WARNING |
+| Critical | X | CRITICAL |
+| Info | i | INFO |
+| Skipped | - | SKIPPED |
+| Running | > | RUNNING |
+
+### **Spacing & Layout**
+
+| Pattern | Rule |
+| :---- | :---- |
+| Max width | Keep human output readable at 80-100 columns |
+| Summary first | Always show the outcome before details |
+| One blank line | Separate major sections with one blank line only |
+| Tables | Align columns, truncate long paths/routes intelligently |
+| Next steps | End failure states with one or two copy-pasteable commands |
+| Default verbosity | Show top 3-5 most important findings; suggest --verbose for full detail |
+
+### **Motion & Progress**
+
+| Context | Behavior |
+| :---- | :---- |
+| Interactive TTY | Use spinner/progress only for operations over 400ms |
+| Non-TTY/CI | No spinner frames; print stable line-based events only when verbose |
+| Long checks | Show current phase: tests, routes, diff |
+| Completion | Replace spinner with final stable result line |
+
+## **6.6 Core User Flow**
+
+The default human journey is four steps:
+
+1. Install RegressGuard.
+2. Run rg init once per project.
+3. Run rg snapshot before an AI coding session.
+4. Run rg check after the AI coding session and before commit.
+
+The CLI must make this path obvious without requiring docs.
+
+### **Flow A: First Install**
+
+Command:
+
+  curl -fsSL https://regressguard.dev/install.sh \| sh
+
+Screen:
+
+  Installing RegressGuard
+  OK Installed rg 0.1.0 to /usr/local/bin/rg
+
+  Verify:
+    rg version
+
+Success criteria:
+
+1. Install output is under 8 lines.
+2. Verification command is visible.
+3. If PATH is missing, output shows the exact export command.
+
+### **Flow B: First Run / Help**
+
+Command:
+
+  rg
+
+Screen:
+
+  RegressGuard
+  Before you commit, know what broke.
+
+  Commands:
+    init       Configure RegressGuard for this project
+    snapshot   Record the current passing state
+    check      Compare current state against the snapshot
+    hook       Install or remove git hooks
+    config     View or edit project config
+    doctor     Diagnose setup issues
+
+  Start:
+    rg init
+
+Success criteria:
+
+1. No more than six command groups at top level.
+2. No flag dump at top level.
+3. Clear first command.
+
+### **Flow C: Guided Init**
+
+Command:
+
+  rg init
+
+Interactive TTY screen sequence:
+
+  RegressGuard init
+
+  OK Found package.json
+  OK Detected Next.js App Router
+  OK Detected test command: npm test
+  ! Dev server not running at http://localhost:3000
+
+  Select dev server URL
+    http://localhost:3000
+    http://localhost:5173
+    Enter custom URL
+
+  Configure auth?
+    Public routes only
+    Bearer token
+    Cookie header
+
+  OK Wrote .regressguard/config.json
+
+  Next:
+    rg snapshot
+
+Non-interactive behavior:
+
+  rg init failed: dev server URL is required in non-interactive mode.
+
+  Run:
+    rg init --server-url http://localhost:3000
+
+Success criteria:
+
+1. Human init feels guided and finite.
+2. Agent/script mode never waits for input.
+3. Final line always gives the next command.
+
+### **Flow D: Snapshot**
+
+Command:
+
+  rg snapshot
+
+Screen:
+
+  Snapshot
+
+  OK Tests       42 passed, 0 failed       6.8s
+  OK Routes      6 captured, 2 skipped     3.1s
+  OK Schemas     6 hashed
+
+  Saved:
+    .regressguard/snapshot.json
+
+  Next:
+    Ask your AI agent to make the code change, then run:
+    rg check
+
+Success criteria:
+
+1. User sees what baseline was captured.
+2. Skipped routes are visible but not scary.
+3. The next action is explicit.
+
+### **Flow E: Clean Check**
+
+Command:
+
+  rg check
+
+Screen:
+
+  Check
+
+  PASS No regressions detected
+
+  Tests       42 passed, 0 failed
+  Routes      6 unchanged
+  Timing      within tolerance
+
+  Safe to commit.
+
+Success criteria:
+
+1. Outcome appears in first three lines.
+2. No unnecessary detail.
+3. Runtime and route details available with --verbose.
+
+### **Flow F: Regression Found**
+
+Command:
+
+  rg check
+
+Screen:
+
+  Check
+
+  CRITICAL 2 regressions detected
+
+  Route                    Before   After   Change
+  GET /api/auth/verify     200      401     status
+  POST /api/user/update    200      500     status
+
+  Likely cause:
+    Auth/session behavior changed during the last code edit.
+
+  Next:
+    rg check --verbose
+    git diff
+
+  Commit blocked.
+
+Success criteria:
+
+1. Failure is unmistakable but calm.
+2. Table shows only decision-critical data by default.
+3. Next steps are copy-pasteable.
+4. Exit code is 1.
+
+### **Flow G: Warning Only**
+
+Command:
+
+  rg check
+
+Screen:
+
+  Check
+
+  WARNING 1 non-blocking change
+
+  Route                 Change
+  GET /api/profile      +248ms slower
+
+  Next:
+    rg check --verbose
+
+  Commit allowed.
+
+Success criteria:
+
+1. Warnings do not feel like failures.
+2. User knows commit is allowed.
+3. Exit code is 0.
+
+### **Flow H: JSON / Agent Mode**
+
+Command:
+
+  rg check --json
+
+stdout:
+
+  {
+    "status": "critical",
+    "summary": {
+      "critical": 2,
+      "warnings": 0,
+      "passed": 48
+    },
+    "results": []
+  }
+
+stderr:
+
+  INFO Run rg check --verbose for request metadata.
+
+Success criteria:
+
+1. stdout is parseable JSON and nothing else.
+2. stderr can contain hints and diagnostics.
+3. Schema is stable across minor versions.
+
+### **Flow I: Git Hook**
+
+Command:
+
+  git commit -m "refactor auth"
+
+Screen:
+
+  RegressGuard pre-commit
+
+  CRITICAL 2 regressions detected
+  Run:
+    rg check --verbose
+
+  Commit blocked. Use --no-verify only if you accept the risk.
+
+Success criteria:
+
+1. Hook output is shorter than normal rg check.
+2. It never opens an interactive prompt.
+3. It clearly explains the bypass without encouraging it.
+
+## **6.7 Screen Inventory**
+
+| Screen | Trigger | Primary Job | Must Show | Must Not Show |
+| :---- | :---- | :---- | :---- | :---- |
+| Top-level help | rg, rg --help | Orient | Command groups, start command | Full flag list |
+| Command help | rg check --help | Teach | Usage, examples, flags, exit codes | Unrelated commands |
+| Init detect | rg init | Configure | Detected stack, test command, server URL, auth mode | Raw config dump |
+| Snapshot running | rg snapshot | Reassure | Phase progress | Raw response bodies |
+| Snapshot complete | rg snapshot | Baseline confidence | tests/routes/schemas saved, next command | Long route list by default |
+| Check running | rg check | Reassure | Phase progress | Spinner in non-TTY |
+| Check pass | rg check | Confirm safety | PASS, compact counts | Verbose route metadata |
+| Check warning | rg check | Inform, do not block | WARNING, non-blocking status, next command | Red/critical styling |
+| Check critical | rg check | Stop bad commit | CRITICAL, top findings, likely cause, next commands | Blame language |
+| Doctor | rg doctor | Diagnose | config/server/test/snapshot status | Irrelevant marketing copy |
+| Config | rg config get/set | Edit safely | key/value, file path, next command | Secrets in plain text unless explicitly requested |
+| Hook install | rg hook install | Confirm protection | hook path, behavior, uninstall command | Overlong explanation |
+
+## **6.8 Quality Bar**
+
+Before launch, capture terminal screenshots or recordings for:
+
+1. rg --help at 80 columns.
+2. rg init interactive success.
+3. rg init non-interactive missing input.
+4. rg snapshot success.
+5. rg check pass.
+6. rg check warning.
+7. rg check critical.
+8. rg check --json piped into jq.
+9. git hook blocked commit.
+10. NO_COLOR=1 rg check.
+
+Acceptance:
+
+1. No line wraps awkwardly at 80 columns.
+2. No screen exceeds one viewport for the default happy path.
+3. Every failure ends with a next command.
+4. JSON mode stays valid under --verbose.
+5. Non-interactive mode never waits for input.
+
+# **7\. Technology Stack**
+
+## **7.1 Stack Decisions**
 
 | Layer | Choice | Reason | Why This |
 | :---- | :---- | :---- | :---- |
-| Runtime | Bun 1.x | Fast installs, built-in test runner, TypeScript native | Performance \+ your default |
-| CLI Framework | @clack/prompts | Beautiful interactive prompts, zero config | DX quality |
-| Language | TypeScript (strict) | Type safety across the entire CLI | Reliability |
-| HTTP Testing | Built-in fetch (Bun) | No extra deps for route hitting | Minimal footprint |
-| Schema Hashing | object-hash \+ custom normalizer | Deterministic JSON normalization | Core accuracy |
+| Runtime | Go 1.22+ | Fast startup, single static binary, excellent subprocess/filesystem support | Serious devtool feel \+ pre-commit speed |
+| CLI Framework | Cobra or urfave/cli | Stable command parsing, flags, shell completion, scriptable behavior | Mature CLI foundation |
+| Interactive Init | Bubble Tea / Charm huh \+ Lip Gloss | Polished guided onboarding for rg init only | Great DX without making checks TUI-dependent |
+| Language | Go | Type safety, simple concurrency, cross-platform binaries | Reliability \+ low install friction |
+| TTY Detection | golang.org/x/term or equivalent isatty check | Branch cleanly between human prompts and script/agent behavior | Prevents hanging automation |
+| HTTP Testing | Go net/http | Standard library, no runtime dependency | Minimal footprint |
+| Schema Hashing | crypto/sha256 \+ custom normalizer | Deterministic JSON normalization | Core accuracy |
+| Output Contract | stdout/stderr separation \+ --json \+ --verbose | Clean data for jq, agents, and CI while preserving human diagnostics | Scriptability |
+| Terminal Styling | Lip Gloss style tokens | Centralized colors, symbols, spacing, and width handling | Consistent world-class CLI screens |
+| Shell Completion | Cobra completion or equivalent | bash/zsh/fish completions | Reduces command friction |
 | Config Storage | JSON files (.regressguard/) | Human readable, git-ignoreable | Transparency |
-| Distribution | npm package \+ npx | Works day one, no install required | Zero friction |
+| Distribution | GitHub Releases \+ Homebrew \+ curl installer \+ optional npm wrapper | Native binary first, npx convenience later | One-line install without Node runtime dependency |
 | Payments | Stripe (global) / Razorpay (India) | Flexible per-region | Revenue from day 30 |
 | Auth (v2) | Clerk | Fast integration, generous free tier | Speed to market |
 | Dashboard (v2) | Next.js \+ Hono \+ Cloudflare Workers | Your native stack | Ownership |
 | DB (v2) | Convex | Realtime, TypeScript-native, no migrations | Velocity |
 
-## **6.2 What Explicitly NOT in the Stack**
+## **7.2 What Explicitly NOT in the Stack**
 
 | No LLM in core product | Deterministic tools earn developer trust. AI adds latency, cost, unpredictability |
 | :---- | :---- |
 | **No cloud dependency v1** | Everything local — snapshot.json is a file. Zero GDPR/privacy issues |
 | **No database v1** | SQLite or flat files only. No Postgres setup friction |
+| **No full-screen TUI for check/snapshot** | rg snapshot and rg check stay plain, fast, pipeable, and CI-safe |
 | **No Electron/GUI** | CLI only. Developers live in terminals |
 
-# **7\. System Architecture**
+# **8\. System Architecture**
 
-## **7.1 v1 Architecture (Local CLI)**
+## **8.1 v1 Architecture (Local CLI)**
 
 Entirely local. No network calls except to the user's own dev server. No telemetry in v1.
 
@@ -240,13 +722,13 @@ Entirely local. No network calls except to the user's own dev server. No telemet
 
 │ Project     │ Test Runner     │ Test Runner        │
 
-│ Scanner     │ (bun test/jest) │ (rerun)            │
+│ Scanner     │ (npm/bun/jest)  │ (rerun)            │
 
 │             │                 │                    │
 
 │ Route       │ Route Hitter    │ Route Hitter       │
 
-│ Discovery   │ (fetch)         │ (rerun)            │
+│ Discovery   │ (net/http)      │ (rerun)            │
 
 │             │                 │                    │
 
@@ -262,7 +744,7 @@ Entirely local. No network calls except to the user's own dev server. No telemet
 
 └─────────────┴─────────────────┴────────────────────┘
 
-## **7.2 Core Modules**
+## **8.2 Core Modules**
 
 ### **Module 1: Project Scanner**
 
@@ -300,16 +782,20 @@ Compares current run against stored snapshot. Applies severity rules. Outputs st
 
 ### **Module 6: Regression Reporter**
 
-Formats output for terminal. Color-coded. Human-readable. Exits with correct code for git hook compatibility. Optionally outputs JSON for CI pipeline consumption.
+Formats output for terminal and automation. Color-coded human output is allowed only when stdout is a TTY and --json is not set. With --json, stdout contains valid JSON only. Progress, warnings, route diagnostics, request metadata, and troubleshooting hints always go to stderr. Exits with correct code for git hook compatibility.
 
-# **8\. How We Achieve Accuracy**
+### **Module 7: Help & Error UX**
 
-## **8.1 The False Positive Problem**
+Owns progressive help, examples, exit code documentation, and actionable error messages. Every command has layered --help output. Every error includes what went wrong, likely cause, copy-pasteable next command, and a --verbose or --help path for deeper diagnosis.
+
+# **9\. How We Achieve Accuracy**
+
+## **9.1 The False Positive Problem**
 
 | If developers see 38 warnings and 35 are noise, they uninstall. Accuracy is the primary product quality metric — not features. |
 | :---- |
 
-## **8.2 False Positive Reduction Strategy**
+## **9.2 False Positive Reduction Strategy**
 
 4. Schema Normalization — never compare raw values, compare type shapes
 
@@ -323,7 +809,7 @@ Formats output for terminal. Color-coded. Human-readable. Exits with correct cod
 
 9. Sampling Consistency — always hit routes in same order, same headers, same config
 
-## **8.3 Honest Accuracy Targets**
+## **9.3 Honest Accuracy Targets**
 
 | Regression Type | Detection Rate | Method |
 | :---- | :---- | :---- |
@@ -334,7 +820,7 @@ Formats output for terminal. Color-coded. Human-readable. Exits with correct cod
 | Subtle logic bug (same output) | Not detected | Out of scope — by design |
 | UI visual regression | Not detected v1 | v2+ with screenshot diffing |
 
-## **8.4 The Auth Problem — Solved**
+## **9.4 The Auth Problem — Solved**
 
 This is the hardest v1 challenge. Every real API has auth. Here is how we handle it:
 
@@ -355,219 +841,225 @@ This is the hardest v1 challenge. Every real API has auth. Here is how we handle
 }                                         
 
 
-# **9\. Core MVP Code**
+# **10\. Core MVP Code**
 
-## **9.1 Project Structure**
+## **10.1 Project Structure**
 
-regressguard/                    
+regressguard/
 
-├── src/                         
+├── cmd/
 
-│   ├── cli.ts          \# Entry  
+│   └── rg/
 
-│   ├── init.ts         \# rg init
+│       └── main.go              \# CLI entry
 
-│   ├── snapshot.ts     \# rg snapshot
+├── internal/
 
-│   ├── check.ts        \# rg check
+│   ├── cli/                     \# Cobra/urfave command wiring
 
-│   ├── scanner/        \# Project detection
+│   ├── init/                    \# rg init, Bubble Tea/huh prompts
 
-│   │   ├── detect.ts   \# Ecosystem detection
+│   ├── config/                  \# config read/write/validation
 
-│   │   └── routes.ts   \# Route discovery
+│   ├── output/                  \# stdout/stderr, JSON, colors, TTY detection
 
-│   ├── engine/         \# Core logic
+│   ├── ui/                      \# design tokens, screen layouts, terminal components
 
-│   │   ├── runner.ts   \# Test runner
+│   ├── errors/                  \# actionable errors and troubleshooting hints
 
-│   │   ├── hitter.ts   \# Route hitter
+│   ├── help/                    \# progressive help, examples, completions
 
-│   │   ├── normalizer.ts \# Schema normalizer
+│   ├── scanner/                 \# Project detection
 
-│   │   ├── diff.ts     \# Diff engine
+│   │   ├── detect.go            \# Ecosystem detection
 
-│   │   └── reporter.ts \# Output reporter
+│   │   └── routes.go            \# Route discovery
 
-│   └── types.ts        \# Shared types
+│   ├── engine/                  \# Core logic
 
-├── package.json                 
+│   │   ├── runner.go            \# Test runner
 
-└── .regressguard/               
+│   │   ├── hitter.go            \# Route hitter
 
-    ├── config.json              
+│   │   ├── normalizer.go        \# Schema normalizer
 
-    └── snapshot.json          
+│   │   ├── diff.go              \# Diff engine
 
+│   │   └── reporter.go          \# Output reporter
 
-## **9.2 Core Schema Normalizer**
+│   └── types/                   \# Shared types
 
-// normalizer.ts — most critical module          
+├── go.mod
 
-const DYNAMIC\_KEYS \= new Set(\[                   
+├── go.sum
 
-  "createdAt","updatedAt","timestamp","deletedAt"
+├── .goreleaser.yaml
 
-  "id","uuid","token","sessionId","nonce",        
+└── .regressguard/
 
-  "accessToken","refreshToken","expiresAt"        
+    ├── config.json
 
-\]);                                              
+    └── snapshot.json
 
-                                                 
 
-export function normalize(obj: unknown): unknown {
+## **10.2 Core Schema Normalizer**
 
-  if (obj \=== null) return "null";               
+// normalizer.go — most critical module
 
-  if (typeof obj \=== "string") {                 
+var dynamicKeys = map[string]bool{
 
-    if (isISO8601(obj)) return "date";           
+  "createdAt": true, "updatedAt": true, "timestamp": true, "deletedAt": true,
 
-    if (isUUID(obj)) return "uuid";              
+  "id": true, "uuid": true, "token": true, "sessionId": true, "nonce": true,
 
-    if (isJWT(obj)) return "token";              
+  "accessToken": true, "refreshToken": true, "expiresAt": true,
 
-    return "string";                             
+}
 
-  }                                             
+func Normalize(value any) any {
 
-  if (typeof obj \=== "number") return "number";  
+  switch v := value.(type) {
 
-  if (typeof obj \=== "boolean") return "boolean";
+  case nil:
 
-  if (Array.isArray(obj)) {                     
+    return "null"
 
-    return obj.length \> 0 ? \[normalize(obj\[0\])\] 
+  case string:
 
-      : "empty\_array";                          
+    if isISO8601(v) { return "date" }
 
-  }                                             
+    if isUUID(v) { return "uuid" }
 
-  if (typeof obj \=== "object") {                
+    if isJWT(v) { return "token" }
 
-    return Object.fromEntries(                   
+    return "string"
 
-      Object.entries(obj)                       
+  case float64, int, int64:
 
-        .filter((\[k\]) \=\> \!DYNAMIC\_KEYS.has(k))  
+    return "number"
 
-        .map((\[k, v\]) \=\> \[k, normalize(v)\])      
+  case bool:
 
-    );                                          
+    return "boolean"
 
-  }                                             
+  case []any:
 
-  return typeof obj;                            
+    if len(v) == 0 { return "empty_array" }
 
-}                                             
+    return []any{Normalize(v[0])}
 
+  case map[string]any:
 
-## **9.3 Core Diff Engine**
+    out := map[string]any{}
 
-// diff.ts                                         
+    for key, nested := range v {
 
-export function diffSnapshots(                     
+      if dynamicKeys[key] { continue }
 
-  before: Snapshot,                               
+      out[key] = Normalize(nested)
 
-  after: Snapshot                                 
+    }
 
-): DiffResult {                                   
+    return out
 
-  const results: CheckResult\[\] \= \[\];              
+  default:
 
-                                                   
+    return fmt.Sprintf("%T", value)
 
-  // 1\. Test suite diff                           
+  }
 
-  if (after.tests.failed \> before.tests.failed) { 
+}
 
-    results.push({ severity: "CRITICAL",          
 
-      message: "Tests: " \+ before.tests.passed \+  
+## **10.3 Core Diff Engine**
 
-        " passing \-\> " \+ after.tests.passed });   
+// diff.go
 
-  }                                               
+func DiffSnapshots(before Snapshot, after Snapshot) DiffResult {
 
-                                                   
+  results := []CheckResult{}
 
-  // 2\. Route diffs                               
+  if after.Tests.Failed > before.Tests.Failed {
 
-  for (const \[route, snap\] of Object.entries(     
+    results = append(results, CheckResult{
 
-    before.routes)) {                             
+      Severity: "CRITICAL",
 
-    const curr \= after.routes\[route\];             
+      Message: fmt.Sprintf("Tests: %d passing -> %d", before.Tests.Passed, after.Tests.Passed),
 
-    if (\!curr) continue;                          
+    })
 
-    // Status code regression                     
+  }
 
-    if (snap.status \!== curr.status) {            
+  for route, snap := range before.Routes {
 
-      results.push({ severity: "CRITICAL",        
+    curr, ok := after.Routes[route]
 
-        message: \`${route}: ${snap.status}→       
+    if !ok { continue }
 
-          ${curr.status}\` });                     
+    if snap.Status != curr.Status {
 
-    }                                             
+      results = append(results, CheckResult{
 
-    // Schema regression                          
+        Severity: "CRITICAL",
 
-    if (snap.schemaHash \!== curr.schemaHash) {    
+        Message: fmt.Sprintf("%s: %d -> %d", route, snap.Status, curr.Status),
 
-      results.push({ severity: "CRITICAL",        
+      })
 
-        message: \`${route}: schema changed\` });   
+    }
 
-    }                                             
+    if snap.SchemaHash != curr.SchemaHash {
 
-    // Performance regression                     
+      results = append(results, CheckResult{
 
-    const timingDelta \= curr.ms \- snap.ms;        
+        Severity: "CRITICAL",
 
-    if (timingDelta \> 200 &&                      
+        Message: fmt.Sprintf("%s: schema changed", route),
 
-      timingDelta / snap.ms \> 0.5) {             
+      })
 
-      results.push({ severity: "WARNING",         
+    }
 
-        message: \`${route}: \+${timingDelta}ms\` });
+    timingDelta := curr.MS - snap.MS
 
-    }                                             
+    if timingDelta > 200 && float64(timingDelta)/float64(snap.MS) > 0.5 {
 
-  }                                               
+      results = append(results, CheckResult{
 
-  return { results,                               
+        Severity: "WARNING",
 
-    hasCritical: results.some(                    
+        Message: fmt.Sprintf("%s: +%dms", route, timingDelta),
 
-      r \=\> r.severity \=== "CRITICAL") };          
+      })
 
-}                                               
+    }
 
+  }
 
-# **10\. 7-Day Build Plan**
+  return DiffResult{Results: results, HasCritical: hasCritical(results)}
+
+}
+
+
+# **11\. 7-Day Build Plan**
 
 | Parkinson's Law applied: scope is locked to what ships in 7 days. Nothing else gets added. |
 | :---- |
 
 | Day | Work | Done When |
 | :---- | :---- | :---- |
-| Day 1 | Project scaffold, CLI entry, @clack/prompts working, rg init detecting package.json and test commands. Hardcoded output to verify format. | Config.json writes correctly |
+| Day 1 | Go project scaffold, CLI entry, command routing, design tokens, progressive help skeleton, rg init detecting package.json and test commands. Bubble Tea/huh only for guided init prompts. | Config.json writes correctly; rg --help stays compact and polished at 80 columns |
 | Day 2 | Schema normalizer complete and tested with 20 real JSON payloads. Route discoverer for Next.js App Router. | Normalizer handles all edge cases |
 | Day 3 | Snapshot engine complete. rg snapshot runs tests \+ hits routes \+ stores snapshot.json. | Full snapshot on real project |
-| Day 4 | Diff engine \+ reporter. rg check compares and outputs colored terminal report. Exit code 1 on CRITICAL. | End-to-end works on real project |
-| Day 5 | Git hook install. Auth token config. Express route discovery. Polish error messages. | Works on 3 different real projects |
-| Day 6 | npm publish. README. Landing page (single GitHub page). Post on X and Indie Hackers. | npx regressguard init works globally |
-| Day 7 | Fix top 3 bugs from real user feedback. Add to git-scope README as related tool. | 3 real humans have used it |
+| Day 4 | Diff engine \+ reporter. rg check compares and renders pass/warning/critical screens. Add --json, --verbose, stdout/stderr separation, and exit codes. | End-to-end works on real project; rg check --json pipes cleanly to jq; default screens fit one viewport |
+| Day 5 | Git hook install. Auth token config. Express route discovery. Polish actionable errors and non-interactive behavior. | Works on 3 different real projects without hanging in hooks/CI |
+| Day 6 | GitHub Release binaries via GoReleaser. README. Landing page (single GitHub page). One-line curl installer. Post on X and Indie Hackers. | curl/Homebrew install works; rg version verifies install; optional npm wrapper documented |
+| Day 7 | Fix top 3 bugs from real user feedback. Capture terminal screenshots/recordings for help/init/snapshot/check/hook flows. Add to git-scope README as related tool. | 3 real humans have used it; screen quality bar passes |
 
-# **11\. Financial Projections**
+# **12\. Financial Projections**
 
-## **11.1 Pricing Model**
+## **12.1 Pricing Model**
 
 | Tier | What's Included | Goal |
 | :---- | :---- | :---- |
@@ -575,11 +1067,11 @@ export function diffSnapshots(
 | Developer — $9/mo | Unlimited snapshots, all projects, git hook, all flags | Target 80% of paying users |
 | Team — $29/mo | Shared snapshots, multi-developer, dashboard, Slack alerts | Target 20% of paying users |
 
-## **11.2 Monthly Projections**
+## **12.2 Monthly Projections**
 
 | Month | Users | MRR | Driver |
 | :---- | :---- | :---- | :---- |
-| Month 1 | 200 free / 5 paid | ₹4,500 (\~$54) | npm publish \+ first posts |
+| Month 1 | 200 free / 5 paid | ₹4,500 (\~$54) | GitHub release \+ Homebrew \+ first posts |
 | Month 2 | 600 free / 20 paid | ₹18,000 (\~$216) | Word of mouth \+ IH post |
 | Month 3 | 1,400 free / 50 paid | ₹45,000 (\~$540) | First "saved me" testimonials |
 | Month 4 | 2,500 free / 100 paid | ₹90,000 (\~$1,080) | Team plan launches |
@@ -587,7 +1079,7 @@ export function diffSnapshots(
 | Month 9 | 9,000 free / 420 paid | ₹3,78,000 (\~$4,536) | Enterprise inquiries begin |
 | Month 12 | 15,000 free / 700 paid | ₹6,30,000 (\~$7,560) | ₹75L ARR run rate |
 
-## **11.3 Cost Structure**
+## **12.3 Cost Structure**
 
 | Infrastructure (Cloudflare Workers, KV) | ₹0 — free tier covers until ₹2L MRR |
 | :---- | :---- |
@@ -596,7 +1088,7 @@ export function diffSnapshots(
 | **Domain \+ Email (Resend)** | \< ₹500/month |
 | **Total Monthly Costs** | \< ₹5,000 until ₹3L+ MRR |
 
-## **11.4 Path to ₹1 Crore ARR**
+## **12.4 Path to ₹1 Crore ARR**
 
 | Target | \~930 paying users at blended $9.50 average |
 | :---- | :---- |
@@ -605,14 +1097,14 @@ export function diffSnapshots(
 | **Gross Margin** | \~94% (software, minimal infra cost) |
 | **Break-even** | Month 2 (5 paid users covers all costs) |
 
-# **12\. Marketing & Distribution**
+# **13\. Marketing & Distribution**
 
-## **12.1 Distribution Strategy**
+## **13.1 Distribution Strategy**
 
 | Your biggest asset: the git-scope audience. Every open source maintainer who starred git-scope is your exact ICP. Use this before spending a rupee on ads. |
 | :---- |
 
-## **12.2 Week 1 Distribution**
+## **13.2 Week 1 Distribution**
 
 10. Post on X with a screen recording: "I built a tool that caught a regression Claude Code introduced silently. Two commands. 12 seconds." — this is the tweet that spreads.
 
@@ -624,7 +1116,7 @@ export function diffSnapshots(
 
 14. DM 20 developers in your git-scope network directly — not cold outreach, warm community.
 
-## **12.3 Ongoing Marketing Engine**
+## **13.3 Ongoing Marketing Engine**
 
 | Testimonial tweets | Every time a user tweets "RegressGuard saved me" — RT it. This is your primary content. |
 | :---- | :---- |
@@ -634,7 +1126,7 @@ export function diffSnapshots(
 | **YouTube demo (month 2\)** | 3-minute screen recording showing real regression caught — no editing needed |
 | **Dev.to / Hashnode article** | "Why AI coding agents need a safety net" — ranks for search terms your users use |
 
-## **12.4 Positioning — What to Say**
+## **13.4 Positioning — What to Say**
 
 | Tagline | "Before you commit, know what broke." |
 | :---- | :---- |
@@ -643,7 +1135,7 @@ export function diffSnapshots(
 | **What it IS** | A safety net. Two commands. Works with your existing stack. |
 | **Against Cursor/Claude Code** | "We are the safety net for the tools you already love — not a competitor." |
 
-# **13\. Risks & Mitigations**
+# **14\. Risks & Mitigations**
 
 | Risk | Severity | Mitigation | Moat |
 | :---- | :---- | :---- | :---- |
@@ -654,7 +1146,7 @@ export function diffSnapshots(
 | Competitor builds same | Medium | Distribution moat via git-scope \+ build in public community | Compounding trust |
 | DB state makes routes flaky | Medium | Seed data docs \+ explicit skip list in config | User control |
 
-# **14\. Defensibility & Moats**
+# **15\. Defensibility & Moats**
 
 | Distribution Moat (Day 1\) | git-scope audience \+ build in public. Cursor cannot buy your community trust. |
 | :---- | :---- |
@@ -663,17 +1155,17 @@ export function diffSnapshots(
 | **Positioning Moat (Day 1\)** | Complementary to Claude Code \+ Cursor, not competitive. They cannot kill you without damaging developer trust in their own tools. |
 | **Open Source Moat** | Stars compound. Contributors add framework support. Community becomes distribution. |
 
-# **15\. Success Metrics**
+# **16\. Success Metrics**
 
-## **15.1 Week 1 (Non-negotiable)**
+## **16.1 Week 1 (Non-negotiable)**
 
-| npm publish | npx regressguard init works on a fresh machine |
+| GitHub release | regressguard installs and runs on a fresh machine via one-line curl/Homebrew; rg version verifies install; optional npx wrapper works |
 | :---- | :---- |
 | **Real usage** | 3 real developers (not you) have run rg check on their project |
 | **Feedback collected** | At least 5 pieces of real feedback captured |
 | **False positive baseline** | Tested on 5 real projects — false positive rate documented |
 
-## **15.2 Month 1**
+## **16.2 Month 1**
 
 | GitHub Stars | 100+ (organic signal) |
 | :---- | :---- |
@@ -681,7 +1173,7 @@ export function diffSnapshots(
 | **MRR** | ₹4,500+ |
 | **User Testimonial** | 1 tweet or post saying "RegressGuard saved me" |
 
-## **15.3 Month 6**
+## **16.3 Month 6**
 
 | GitHub Stars | 1,000+ |
 | :---- | :---- |
@@ -690,7 +1182,7 @@ export function diffSnapshots(
 | **Churn Rate** | \<5% monthly |
 | **NPS** | \>50 |
 
-# **16\. The One Rule**
+# **17\. The One Rule**
 
 | Ship the CLI in 7 days or do not ship it at all. Every day of additional planning is a day a user goes unserved and a competitor gets closer. The spec is done. The only question left is execution. |
 | :---- |
