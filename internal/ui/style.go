@@ -63,6 +63,18 @@ func ColorEnabled(w io.Writer) bool {
 	return stat.Mode()&os.ModeCharDevice != 0
 }
 
+func IsTerminal(stream any) bool {
+	file, ok := stream.(*os.File)
+	if !ok {
+		return false
+	}
+	stat, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return stat.Mode()&os.ModeCharDevice != 0
+}
+
 func Paint(w io.Writer, color Color, text string) string {
 	if color == ColorDefault || !ColorEnabled(w) {
 		return text

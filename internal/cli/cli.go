@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/regressguard/regressguard/internal/failures"
+	"github.com/regressguard/regressguard/internal/initrun"
+	"github.com/regressguard/regressguard/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -70,7 +72,41 @@ func configureCompletionHelp(root *cobra.Command) {
 }
 
 func newInitCommand() *cobra.Command {
-	return stubCommand("init", "Configure RegressGuard for this project", "rg init")
+	cmd := stubCommand("init", "Configure RegressGuard for this project", "rg init")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		serverURL, _ := cmd.Flags().GetString("server-url")
+		testCommand, _ := cmd.Flags().GetString("test-command")
+		yes, _ := cmd.Flags().GetBool("yes")
+		jsonMode, _ := cmd.Flags().GetBool("json")
+		forceInteractive, _ := cmd.Flags().GetBool("interactive")
+
+		_, err := initrun.Run(initrun.Options{
+			StartDir:         ".",
+			ServerURL:        serverURL,
+			TestCommand:      testCommand,
+			Yes:              yes,
+			JSON:             jsonMode,
+			Interactive:      ui.IsTerminal(cmd.InOrStdin()) && ui.IsTerminal(cmd.OutOrStdout()),
+			ForceInteractive: forceInteractive,
+			Stdout:           cmd.OutOrStdout(),
+			Stderr:           cmd.ErrOrStderr(),
+			Stdin:            cmd.InOrStdin(),
+		})
+		if err != nil {
+			if issue, ok := err.(failures.Actionable); ok && jsonMode {
+				return writeActionable(cmd, issue)
+			}
+			return err
+		}
+		return nil
+	}
+	cmd.Flags().String("server-url", "", "dev server URL, for example http://localhost:3000")
+	cmd.Flags().String("test-command", "", "override detected test command")
+	cmd.Flags().Bool("yes", false, "overwrite existing config without prompting")
+	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
+	cmd.Flags().Bool("interactive", false, "force guided prompts")
+	_ = cmd.Flags().MarkHidden("interactive")
+	return cmd
 }
 
 func newSnapshotCommand() *cobra.Command {

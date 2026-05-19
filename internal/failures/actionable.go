@@ -48,3 +48,30 @@ func MissingTestCommand() Actionable {
 		MoreContext: "rg config --help",
 	}
 }
+
+func ProjectRootMissing() Actionable {
+	return Actionable{
+		Title:       "rg init failed: no project root found.",
+		Cause:       "This directory is not inside a package.json or git repository.",
+		Next:        "cd <your-project> && rg init",
+		MoreContext: "rg init --help",
+	}
+}
+
+func DevServerURLRequired() Actionable {
+	return Actionable{
+		Title:       "rg init failed: dev server URL is required in non-interactive mode.",
+		Cause:       "The default http://localhost:3000 server was not reachable, and scripts cannot be prompted.",
+		Next:        "rg init --server-url http://localhost:3000",
+		MoreContext: "rg init --help",
+	}
+}
+
+func ConfigExists(path string) Actionable {
+	return Actionable{
+		Title:       "rg init failed: config already exists.",
+		Cause:       "RegressGuard will not overwrite " + path + " without confirmation.",
+		Next:        "rg init --yes",
+		MoreContext: "rg init --help",
+	}
+}

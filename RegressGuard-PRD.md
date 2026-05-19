@@ -1076,7 +1076,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | Epic | User Outcome | PRD Source | Launch Priority | Status |
 | :---- | :---- | :---- | :---- | :---- |
 | E1 CLI Foundation | User can install, discover, and run rg without docs | Sections 5.1, 6, 7 | P0 | DONE |
-| E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | NOT STARTED |
+| E2 Project Init | User gets a valid config for a real project | Feature 1, Flow C | P0 | DONE |
 | E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | NOT STARTED |
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | NOT STARTED |
 | E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | NOT STARTED |
@@ -1113,14 +1113,14 @@ Goal: A user can run rg init in a real project and get a useful .regressguard/co
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E2-T1 | Detect project root | Finds nearest package.json or git root; fails helpfully outside a project | fixture test | NOT STARTED |
-| E2-T2 | Detect package manager | Detects npm, pnpm, yarn, bun from lockfiles; records package manager in config | fixture matrix | NOT STARTED |
-| E2-T3 | Detect test command | Infers vitest/jest/bun test/npm test from package scripts; lets user override | fixture matrix | NOT STARTED |
-| E2-T4 | Detect framework | Detects Next.js App Router v1 target; records framework | fixture test | NOT STARTED |
-| E2-T5 | Detect dev server URL | Uses default localhost:3000, checks reachability, allows override | command output | NOT STARTED |
-| E2-T6 | Interactive init | TTY mode uses guided prompts for uncertain values; final screen shows next command | terminal recording | NOT STARTED |
-| E2-T7 | Non-interactive init | Non-TTY never prompts; missing required values produce exact flag to rerun | non-TTY command output | NOT STARTED |
-| E2-T8 | Config write | Writes human-readable .regressguard/config.json; does not overwrite without confirmation unless --yes | config fixture | NOT STARTED |
+| E2-T1 | Detect project root | Finds nearest package.json or git root; fails helpfully outside a project | `TestFindRootFindsNearestPackageJSON`, `TestFindRootFallsBackToGitRoot`, `./bin/rg init` outside project exits 2 with `cd <your-project> && rg init` | DONE |
+| E2-T2 | Detect package manager | Detects npm, pnpm, yarn, bun from lockfiles; records package manager in config | `TestDetectPackageManagerMatrix`; fixture `rg init --server-url ... --yes` writes `"packageManager": "npm"` | DONE |
+| E2-T3 | Detect test command | Infers vitest/jest/bun test/npm test from package scripts; lets user override | `TestDetectInfersTestCommand`, `TestDetectHonorsTestCommandOverride`; config fixture writes `"testCommand": "npm test"` | DONE |
+| E2-T4 | Detect framework | Detects Next.js App Router v1 target; records framework | `TestDetectsNextAppRouterAndRoutes`; fixture config writes `"framework": "nextjs-app-router"` and `/api/health` route | DONE |
+| E2-T5 | Detect dev server URL | Uses default localhost:3000, checks reachability, allows override | `TestRunWritesConfigForReachableDefaultServer`; CLI fixture `rg init --server-url http://localhost:3000 --yes` records server URL and warns when unreachable | DONE |
+| E2-T6 | Interactive init | TTY mode uses guided prompts for uncertain values; final screen shows next command | `TestRunInteractivePromptsForServerURL`; forced interactive CLI output shows detection, server URL prompt, `OK Wrote`, and `rg snapshot` | DONE |
+| E2-T7 | Non-interactive init | Non-TTY never prompts; missing required values produce exact flag to rerun | `TestRunNonInteractiveRequiresServerURLWhenDefaultUnreachable`; CLI `rg init` exits 2 with `rg init --server-url http://localhost:3000`; JSON error parses with `jq` | DONE |
+| E2-T8 | Config write | Writes human-readable .regressguard/config.json; does not overwrite without confirmation unless --yes | `TestRunWritesConfigForReachableDefaultServer`, `TestRunDoesNotOverwriteWithoutYes`; config JSON parsed successfully; overwrite failure suggests `rg init --yes` | DONE |
 
 ## **11.6 Epic E3: Snapshot Baseline**
 
