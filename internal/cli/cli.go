@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/Bharath-code/regressguard/internal/checkrun"
+	"github.com/Bharath-code/regressguard/internal/configrun"
+	"github.com/Bharath-code/regressguard/internal/doctorrun"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/initrun"
@@ -221,13 +223,69 @@ func newConfigCommand() *cobra.Command {
 		},
 	}
 	cmd.SetHelpTemplate(groupHelpTemplate("rg config get serverUrl"))
-	cmd.AddCommand(stubCommand("get", "Read a config value", "rg config get serverUrl"))
-	cmd.AddCommand(stubCommand("set", "Write a config value", "rg config set serverUrl http://localhost:3000"))
+	cmd.AddCommand(newConfigGetCommand())
+	cmd.AddCommand(newConfigSetCommand())
+	return cmd
+}
+
+func newConfigGetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get <key>",
+		Short: "Read a config value",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := configrun.Get(args[0], ".", cmd.OutOrStdout())
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					return issue
+				}
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg config get serverUrl"))
+	return cmd
+}
+
+func newConfigSetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set <key> <value>",
+		Short: "Write a config value",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := configrun.Set(args[0], args[1], ".", cmd.OutOrStdout())
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					return issue
+				}
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg config set serverUrl http://localhost:3000"))
 	return cmd
 }
 
 func newDoctorCommand() *cobra.Command {
-	return stubCommand("doctor", "Diagnose setup issues", "rg doctor")
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Diagnose setup issues",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ok := doctorrun.Run(doctorrun.Options{
+				ProjectRoot: ".",
+				Stdout:      cmd.OutOrStdout(),
+				Stderr:      cmd.ErrOrStderr(),
+			})
+			if !ok {
+				return fmt.Errorf("")
+			}
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg doctor"))
+	return cmd
 }
 
 func newVersionCommand(build BuildInfo) *cobra.Command {
