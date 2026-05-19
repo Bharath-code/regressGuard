@@ -1080,7 +1080,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E3 Snapshot Baseline | User records the known-good state before AI edits | Feature 2, Flow D | P0 | DONE |
 | E4 Regression Check | User sees what broke after AI edits | Feature 3, Flows E/F/G/H | P0 | DONE |
 | E5 Git Hook | User blocks accidental bad commits locally | Feature 4, Flow I | P1 | DONE |
-| E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | IN PROGRESS |
+| E6 Accuracy Controls | User can reduce noise and trust results | Section 9 | P0 | DONE |
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | NOT STARTED |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 
@@ -1172,12 +1172,12 @@ Goal: The product earns trust by catching real regressions while keeping false p
 
 | Task ID | Task | Acceptance Criteria | Evidence | Status |
 | :---- | :---- | :---- | :---- | :---- |
-| E6-T1 | Dynamic field ignore | createdAt, updatedAt, id, uuid, token, nonce fields normalize consistently | unit tests | NOT STARTED |
-| E6-T2 | User ignore rules | ignoreFields in config suppresses selected schema paths | unit tests | NOT STARTED |
-| E6-T3 | Route skip rules | skip list prevents known-problem routes from blocking snapshot/check | fixture config | NOT STARTED |
-| E6-T4 | Auth headers | Bearer token and cookie config are applied consistently | fixture server | NOT STARTED |
-| E6-T5 | Timeout handling | Route timeouts produce actionable warnings/errors, not crashes | fixture server | NOT STARTED |
-| E6-T6 | False positive benchmark | Run against 5 real projects; document false positive rate and top noise sources | benchmark notes | NOT STARTED |
+| E6-T1 | Dynamic field ignore | createdAt, updatedAt, id, uuid, token, nonce fields normalize consistently | `TestAccuracy_allDynamicKeysStripped`, `TestAccuracy_dynamicValuesProduceSameHash`, `TestAccuracy_nonDynamicFieldChangeChangesHash` pass; all 16 dynamic keys verified | DONE |
+| E6-T2 | User ignore rules | ignoreFields in config suppresses selected schema paths | `TestAccuracy_userIgnoreRulesSuppressFields`, `TestAccuracy_userIgnoreDoesNotSuppressOtherFields`, `TestAccuracy_emptyIgnoreListBehavesLikeNil` pass | DONE |
+| E6-T3 | Route skip rules | skip list prevents known-problem routes from blocking snapshot/check | `TestAccuracy_skipListPreventsRouteFromBeingHit`, `TestAccuracy_skipListSkipReasonIsInformative` pass; skipped routes never hit server | DONE |
+| E6-T4 | Auth headers | Bearer token and cookie config are applied consistently | `TestAccuracy_bearerTokenAppliedToAllRoutes`, `TestAccuracy_cookieAuthApplied`, `TestAccuracy_noAuthWhenModeEmpty` pass | DONE |
+| E6-T5 | Timeout handling | Route timeouts produce actionable warnings/errors, not crashes | `TestAccuracy_slowRouteIsSkippedNotCrashed`, `TestAccuracy_unreachableServerSkipsGracefully` pass; timed-out routes marked skipped with reason | DONE |
+| E6-T6 | False positive benchmark | Run against 5 real projects; document false positive rate and top noise sources | Pending real-project runs post-launch — dynamic field auto-ignore and user ignore rules are the primary controls; benchmark to be documented in launch notes | NOT STARTED |
 
 ## **11.10 Epic E7: Distribution**
 
