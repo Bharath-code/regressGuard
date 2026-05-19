@@ -103,11 +103,17 @@ Check
 X 2 regressions detected
 
   Route                                 Before    After     Change
-  GET /api/auth/verify                  200       401       status
+  GET /api/users                        schema    schema    schema
+    - role (string, removed)
+    + age (number, added)
   POST /api/user/update                 200       500       status
 
 Likely cause:
-  Auth/session behavior changed during the last code edit.
+  Auth/session behavior or routing changed during the last code edit.
+
+Changed files since snapshot:
+  app/api/users/route.ts
+  internal/auth/session.go
 
 Next:
   rg check --verbose
@@ -126,7 +132,21 @@ Exit code `1` on critical — works with git hooks and CI.
 rg hook install
 ```
 
-Now `rg check` runs automatically before every `git commit`. Critical regressions block the commit. Bypass with `git commit --no-verify` only when you accept the risk.
+Now `rg check` runs automatically before every `git commit`. When a critical regression is detected, the commit is blocked with a compact output:
+
+```
+RegressGuard pre-commit
+
+X 1 regression detected
+  POST /api/user/update status changed from 200 to 500
+
+Run:
+  rg check --verbose
+
+Commit blocked. Use --no-verify only if you accept the risk.
+```
+
+Bypass with `git commit --no-verify` only when you accept the risk.
 
 ---
 
@@ -142,6 +162,7 @@ Now `rg check` runs automatically before every `git commit`. Critical regression
 | `rg config get <key>` | Read a config value |
 | `rg config set <key> <value>` | Write a config value |
 | `rg doctor` | Diagnose setup issues |
+| `rg completion <shell>` | Generate shell autocompletions (bash, zsh, fish) |
 | `rg version` | Print version and build metadata |
 
 Run `rg <command> --help` for flags, examples, and exit codes.
@@ -183,11 +204,16 @@ Config lives in `.regressguard/config.json` (human-readable, git-ignoreable).
 1. `rg snapshot` runs your test suite and hits each configured route. It records pass/fail counts, HTTP status codes, and a normalized schema hash for each response.
 
 2. `rg check` reruns the same tests and routes, then diffs against the snapshot:
-   - **CRITICAL**: test suite newly failing, status code changed, response schema changed
+   - **CRITICAL**: test suite newly failing, status code changed, response schema changed (e.g. field removed/added/changed)
    - **WARNING**: response time increased >200ms and >50% of baseline
    - **PASS**: everything within acceptable variance
 
-3. Schema comparison strips dynamic values (timestamps, UUIDs, tokens, IDs) before hashing — so the same endpoint returning different users still hashes identically unless the *shape* changes.
+3. Schema comparison automatically normalizes JSON payloads:
+   - **Default Dynamic Keys**: Strips 16 common dynamic keys (`id`, `uuid`, `token`, `nonce`, `timestamp`, `createdAt`, `updatedAt`, `deletedAt`, `created_at`, `updated_at`, `deleted_at`, `sessionId`, `accessToken`, `refreshToken`, `expiresAt`, `expires_at`) before hashing.
+   - **Pattern Detection**: Automatically detects ISO-8601 date strings, UUIDs, and JWTs, replacing them with generic type representations (`"date"`, `"uuid"`, `"token"`).
+   - **User Customization**: Respects custom `ignoreFields` defined in config.
+
+   This ensures the shape integrity of endpoints remains stable across runs even when database IDs and timestamps change.
 
 ---
 
