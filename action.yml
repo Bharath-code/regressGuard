@@ -1,0 +1,225 @@
+name: "RegressGuard Check"
+description: "Run rg check on PRs and post a comment with regression results"
+author: "Bharath-code"
+
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  version:
+    description: "RegressGuard version to install (default: latest)"
+    required: false
+    default: "latest"
+  server-command:
+    description: "Command to start the dev server (e.g. npm run dev)"
+    required: false
+    default: ""
+  server-url:
+    description: "Dev server URL to wait for (e.g. http://localhost:3000)"
+    required: false
+    default: "http://localhost:3000"
+  server-wait:
+    description: "Max seconds to wait for server to be ready"
+    required: false
+    default: "30"
+  working-directory:
+    description: "Directory to run rg check in (default: repo root)"
+    required: false
+    default: "."
+  post-comment:
+    description: "Post a PR comment with results (true/false)"
+    required: false
+    default: "true"
+  fail-on-critical:
+    description: "Fail the action (exit 1) on critical regressions"
+    required: false
+    default: "true"
+  token:
+    description: "GitHub token for posting PR comments (default: github.token)"
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  status:
+    description: "Check result: pass, warning, or critical"
+  critical:
+    description: "Number of critical regressions found"
+  warnings:
+    description: "Number of warnings found"
+  passed:
+    description: "Number of routes that passed"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install RegressGuard
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh
+        else
+          curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh -s -- --version "$VERSION"
+        fi
+        echo "Installed: $(rg version 2>/dev/null | head -1)"
+
+    - name: Resolve config defaults
+      id: config
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Read serverUrl and serverCommand from .regressguard/config.json
+        # when action inputs are not explicitly provided.
+        CONFIG=".regressguard/config.json"
+        if [ -f "$CONFIG" ]; then
+          CFG_SERVER_URL=$(jq -r '.serverUrl // empty' "$CONFIG" 2>/dev/null)
+          CFG_SERVER_CMD=$(jq -r '.serverCommand // empty' "$CONFIG" 2>/dev/null)
+        fi
+
+        # Use action input if provided, otherwise fall back to config.
+        SERVER_CMD="${{ inputs.server-command }}"
+        SERVER_URL="${{ inputs.server-url }}"
+
+        if [ -z "$SERVER_CMD" ] && [ -n "$CFG_SERVER_CMD" ]; then
+          SERVER_CMD="$CFG_SERVER_CMD"
+        fi
+        if [ "$SERVER_URL" = "http://localhost:3000" ] && [ -n "$CFG_SERVER_URL" ]; then
+          SERVER_URL="$CFG_SERVER_URL"
+        fi
+
+        echo "server-command=$SERVER_CMD" >> "$GITHUB_OUTPUT"
+        echo "server-url=$SERVER_URL" >> "$GITHUB_OUTPUT"
+
+    - name: Start dev server
+      if: steps.config.outputs.server-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        SERVER_CMD="${{ steps.config.outputs.server-command }}"
+        SERVER_URL="${{ steps.config.outputs.server-url }}"
+
+        echo "Starting server: $SERVER_CMD"
+        $SERVER_CMD &
+        SERVER_PID=$!
+        echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
+
+        # Wait for server to be ready.
+        MAX_WAIT=${{ inputs.server-wait }}
+        ELAPSED=0
+        until curl -sf "$SERVER_URL" > /dev/null 2>&1; do
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "::error::Server did not respond at $SERVER_URL within ${MAX_WAIT}s"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+          sleep 1
+          ELAPSED=$((ELAPSED + 1))
+        done
+        echo "Server ready at $SERVER_URL (${ELAPSED}s)"
+
+    - name: Run rg check
+      id: check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set +e
+        RESULT=$(rg check --json 2>/dev/null)
+        EXIT_CODE=$?
+        set -e
+
+        # Parse JSON result.
+        STATUS=$(echo "$RESULT" | jq -r '.status // "error"')
+        CRITICAL=$(echo "$RESULT" | jq -r '.summary.critical // 0')
+        WARNINGS=$(echo "$RESULT" | jq -r '.summary.warnings // 0')
+        PASSED=$(echo "$RESULT" | jq -r '.summary.passed // 0')
+
+        # Set outputs.
+        echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+        echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+        echo "warnings=$WARNINGS" >> "$GITHUB_OUTPUT"
+        echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+
+        # Save full result for comment step.
+        echo "$RESULT" > /tmp/rg-result.json
+
+        echo "RegressGuard: status=$STATUS critical=$CRITICAL warnings=$WARNINGS passed=$PASSED"
+
+    - name: Post PR comment
+      if: inputs.post-comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        STATUS="${{ steps.check.outputs.status }}"
+        CRITICAL="${{ steps.check.outputs.critical }}"
+        WARNINGS="${{ steps.check.outputs.warnings }}"
+        PASSED="${{ steps.check.outputs.passed }}"
+
+        # Build comment body.
+        if [ "$STATUS" = "pass" ]; then
+          ICON="OK"
+          TITLE="RegressGuard: No regressions detected"
+        elif [ "$STATUS" = "warning" ]; then
+          ICON="!"
+          TITLE="RegressGuard: ${WARNINGS} warning(s)"
+        elif [ "$STATUS" = "critical" ]; then
+          ICON="X"
+          TITLE="RegressGuard: ${CRITICAL} regression(s) detected"
+        else
+          ICON="?"
+          TITLE="RegressGuard: check failed"
+        fi
+
+        BODY="### ${ICON} ${TITLE}
+
+        | Metric | Count |
+        |--------|-------|
+        | Critical | ${CRITICAL} |
+        | Warnings | ${WARNINGS} |
+        | Passed | ${PASSED} |"
+
+        # Add findings if any.
+        if [ "$STATUS" = "critical" ] || [ "$STATUS" = "warning" ]; then
+          FINDINGS=$(cat /tmp/rg-result.json | jq -r '.results[]? | "| \(.severity) | \(.route // "tests") | \(.message) |"' 2>/dev/null | head -10)
+          if [ -n "$FINDINGS" ]; then
+            BODY="${BODY}
+
+        **Findings:**
+
+        | Severity | Route | Message |
+        |----------|-------|---------|
+        ${FINDINGS}"
+          fi
+        fi
+
+        BODY="${BODY}
+
+        ---
+        *Run \`rg check --verbose\` locally for full details.*"
+
+        # Post or update comment.
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          --jq '.[] | select(.body | contains("RegressGuard:")) | .id' 2>/dev/null | head -1)
+
+        if [ -n "$EXISTING" ]; then
+          gh api "repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+            -X PATCH -f body="$BODY" > /dev/null 2>&1
+        else
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            -f body="$BODY" > /dev/null 2>&1
+        fi
+
+    - name: Stop dev server
+      if: always() && env.SERVER_PID != ''
+      shell: bash
+      run: |
+        kill $SERVER_PID 2>/dev/null || true
+
+    - name: Fail on critical
+      if: inputs.fail-on-critical == 'true' && steps.check.outputs.status == 'critical'
+      shell: bash
+      run: |
+        echo "::error::RegressGuard detected ${{ steps.check.outputs.critical }} critical regression(s). Commit blocked."
+        exit 1

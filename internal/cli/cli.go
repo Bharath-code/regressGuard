@@ -12,6 +12,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/configrun"
 	"github.com/Bharath-code/regressguard/internal/doctorrun"
+	"github.com/Bharath-code/regressguard/internal/explainrun"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/initrun"
@@ -78,6 +79,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newInitCommand(),
 		newSnapshotCommand(),
 		newCheckCommand(),
+		newExplainCommand(),
 		newStatusCommand(),
 		newHookCommand(),
 		newConfigCommand(),
@@ -207,6 +209,38 @@ func newCheckCommand() *cobra.Command {
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
 	cmd.Flags().String("since", "", "scope to routes changed since git ref (HEAD~1, main)")
 	cmd.Flags().Bool("auto-server", false, "spawn dev server from config, run check, kill on exit")
+	return cmd
+}
+
+func newExplainCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "explain <route>",
+		Short: "Show before/after diff for a specific route",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			jsonMode, _ := cmd.Flags().GetBool("json")
+
+			_, err := explainrun.Run(explainrun.Options{
+				ProjectRoot: ".",
+				Route:       args[0],
+				JSON:        jsonMode,
+				Stdout:      cmd.OutOrStdout(),
+				Stderr:      cmd.ErrOrStderr(),
+			})
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					if jsonMode {
+						return writeActionable(cmd, issue)
+					}
+					return issue
+				}
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg explain \"GET /api/users\""))
+	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	return cmd
 }
 
