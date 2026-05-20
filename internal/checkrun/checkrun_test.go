@@ -482,3 +482,168 @@ func TestRun_jsonOutput_verboseStaysOnStderr(t *testing.T) {
 		t.Error("expected verbose output on stderr")
 	}
 }
+
+// --- E10-T4: Snapshot age warning ---
+
+func TestRun_snapshotAgeWarning_staleSnapshot(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/api/health")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now().Add(-3 * 24 * time.Hour), // 3 days old
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "", MS: 10},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Warning should appear on stderr.
+	stderrStr := stderr.String()
+	if !strings.Contains(stderrStr, "Snapshot is 3d old") {
+		t.Errorf("expected stale snapshot warning on stderr, got: %s", stderrStr)
+	}
+	if !strings.Contains(stderrStr, "rg snapshot") {
+		t.Errorf("expected 'rg snapshot' suggestion in warning, got: %s", stderrStr)
+	}
+
+	// Should not affect exit code — status should still be pass (not critical).
+	if result.Status == "critical" {
+		t.Errorf("snapshot age warning should not cause critical status, got: %s", result.Status)
+	}
+}
+
+func TestRun_snapshotAgeWarning_freshSnapshot(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/api/health")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(), // fresh
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "", MS: 10},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// No warning should appear for fresh snapshot.
+	stderrStr := stderr.String()
+	if strings.Contains(stderrStr, "Snapshot is") {
+		t.Errorf("should not show age warning for fresh snapshot, got: %s", stderrStr)
+	}
+}
+
+func TestRun_snapshotAgeWarning_jsonMode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/api/health")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now().Add(-3 * 24 * time.Hour), // 3 days old
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "", MS: 10},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		JSON:        true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// In JSON mode, warning goes to stderr (not stdout).
+	stderrStr := stderr.String()
+	if !strings.Contains(stderrStr, "Snapshot is 3d old") {
+		t.Errorf("expected stale snapshot warning on stderr in JSON mode, got: %s", stderrStr)
+	}
+
+	// stdout must still be valid JSON (warning must not pollute stdout).
+	var parsed Result
+	if err := json.Unmarshal(stdout.Bytes(), &parsed); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nGot:\n%s", err, stdout.String())
+	}
+}
+
+func TestFormatAge(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		want     string
+	}{
+		{25 * time.Hour, "1d"},
+		{3 * 24 * time.Hour, "3d"},
+		{7 * 24 * time.Hour, "7d"},
+		{36 * time.Hour, "1d"},
+	}
+	for _, tt := range tests {
+		got := formatAge(tt.duration)
+		if got != tt.want {
+			t.Errorf("formatAge(%v) = %q, want %q", tt.duration, got, tt.want)
+		}
+	}
+}

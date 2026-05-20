@@ -75,6 +75,12 @@ func Run(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
+	// E10-T4: snapshot age warning (non-blocking, stderr only).
+	if age := time.Since(snap.CreatedAt); age > 24*time.Hour {
+		msg := fmt.Sprintf("%s Snapshot is %s old. Consider running rg snapshot for a fresh baseline.", ui.SymbolWarning, formatAge(age))
+		_, _ = fmt.Fprintln(opts.Stderr, msg)
+	}
+
 	// E9-T2: fast server-down detection.
 	if len(cfg.Routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
@@ -612,6 +618,16 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return string(runes[:n-1]) + "~"
+}
+
+// formatAge returns a human-friendly duration string like "3d", "5h", "2d".
+func formatAge(d time.Duration) string {
+	hours := int(d.Hours())
+	if hours >= 24 {
+		days := hours / 24
+		return fmt.Sprintf("%dd", days)
+	}
+	return fmt.Sprintf("%dh", hours)
 }
 
 func writeLines(w io.Writer, lines []string) error {
