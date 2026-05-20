@@ -249,7 +249,7 @@ func Run(opts Options) (Result, error) {
 	// E12-T4: update check streak in state.
 	streak := updateStreak(opts.ProjectRoot, result.Status)
 
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime), streak)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime), streak, opts.ProjectRoot)
 }
 
 func loadConfig(root string) (config.Config, error) {
@@ -354,7 +354,7 @@ func paint(w io.Writer, color ui.Color, text string) string {
 }
 
 // writeHuman renders the appropriate Flow screen (E/F/G) to stdout.
-func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string, elapsed time.Duration, streak int) error {
+func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string, elapsed time.Duration, streak int, projectRoot string) error {
 	_ = stderr
 	switch result.Status {
 	case "critical":
@@ -362,12 +362,12 @@ func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult,
 	case "warning":
 		return writeHumanWarning(stdout, result, diff, elapsed)
 	default:
-		return writeHumanPass(stdout, result, before, after, elapsed, streak)
+		return writeHumanPass(stdout, result, before, after, elapsed, streak, projectRoot)
 	}
 }
 
 // writeHumanPass renders Flow E — clean check with styled banner and celebration.
-func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration, streak int) error {
+func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration, streak int, projectRoot string) error {
 	isTTY := ui.ColorEnabled(stdout)
 
 	// Styled banner for the verdict.
@@ -400,6 +400,18 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 		safeMsg += "  " + paint(stdout, ui.ColorMuted, fmt.Sprintf("%d clean checks in a row.", streak))
 	}
 	ui.SuccessCelebration(stdout, safeMsg)
+
+	// E12-T5: first-run celebration — show workflow explanation on first pass.
+	s := state.Load(projectRoot)
+	if !s.FirstPassShown {
+		_, _ = fmt.Fprintln(stdout)
+		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "Setup complete. Your workflow:"))
+		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  1. Code (or let AI code)"))
+		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  2. rg check"))
+		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  3. Commit with confidence"))
+		s.FirstPassShown = true
+		_ = state.Save(projectRoot, s)
+	}
 
 	// Footer with timing.
 	_, _ = fmt.Fprintln(stdout)
