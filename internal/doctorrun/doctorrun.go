@@ -95,6 +95,13 @@ func runChecks(opts Options) bool {
 			} else {
 				printWarn(opts.Stdout, "Routes", "none configured — rg snapshot will skip route checks")
 			}
+
+			// 5. Auth token security check.
+			if config.LooksLikeSecret(cfg.Auth.TestToken) {
+				printWarn(opts.Stdout, "Auth token", "raw secret in config.json — use $ENV_VAR reference instead")
+				_, _ = fmt.Fprintf(opts.Stdout, "  Tip: rg config set auth.testToken \"$RG_TEST_TOKEN\"\n")
+				_, _ = fmt.Fprintf(opts.Stdout, "  Then: echo 'RG_TEST_TOKEN=your-token' >> .regressguard/.env\n")
+			}
 		}
 	} else {
 		printFail(opts.Stdout, "Config", "not found")
