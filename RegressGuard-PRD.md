@@ -1086,7 +1086,8 @@ Default status for all v1 tasks below: NOT STARTED.
 | E9 10x Value Improvements | Field diff, fast server detection, git context, tight hook output | Section 11.11 | P0 | DONE |
 | E10 Launch Polish | Colored output, parallel routes, server-down in snapshot, Express discovery, snapshot age warning | Section 11.12 | P1 | DONE |
 | E11 Terminal Micro-Interactions | Spinners, live progress, staggered reveals, elapsed timers — world-class CLI feel | Section 11.12b | P1 | DONE |
-| E12 Habit-Forming Workflow | Status command, hook nudge, session streak, first-run celebration — zero-friction habit loop | Section 11.12c | P1 | NOT STARTED |
+| E12 Habit-Forming Workflow | Status command, hook nudge, session streak, first-run celebration — zero-friction habit loop | Section 11.12c | P1 | DONE |
+| E13 Bulletproof Product | Scoped checks, auth security, POST body support, auto-server, MCP integration, self-update, GitHub Action | Section 11.12d | P1 | NOT STARTED |
 
 Priority definitions:
 
@@ -1245,6 +1246,21 @@ Goal: Reduce friction to zero and create a natural habit loop. Make RegressGuard
 | E12-T3 | `rg` bare command shows status when configured | When run in a configured project (config exists), `rg` with no args shows a compact status instead of just help — snapshot age, last check result, hook status | `rg` in configured project shows status + help; `rg` outside project shows normal help; does not run tests/routes | DONE |
 | E12-T4 | Session streak in pass screen | Pass screen shows "N clean checks in a row" counter, stored in a local state file (.regressguard/state.json) | Counter increments on pass, resets on critical; shown in pass screen only; not in --json stdout (goes to stderr or omitted) | DONE |
 | E12-T5 | First-run celebration | First time `rg check` passes on a project, show a distinct "Setup complete" message with a brief explanation of the workflow | Appears only on first pass (tracked in state); subsequent passes show normal screen; suppressed in --json/hook modes | DONE |
+
+## **11.12d Epic E13: Bulletproof Product**
+
+Goal: Close the remaining gaps between "competent CLI" and "the obvious choice." Address the real-world friction points, accuracy holes, and integration opportunities that will make RegressGuard indispensable — not just useful.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E13-T1 | Scoped check (`--since`) | `rg check --since HEAD~1` diffs changed files against the route map and only hits routes whose source files changed; tests still run fully | `rg check --since HEAD~1` with 1 changed route file hits only that route; timing is proportional to scope; `--since main` works for branch-based scoping; full check remains the default without flag | DONE |
+| E13-T2 | Auth env var interpolation | `auth.testToken` supports `$VAR` syntax that resolves from environment or `.regressguard/.env` file; tokens never stored in config.json | Config with `"testToken": "$RG_TEST_TOKEN"` resolves at runtime; `.regressguard/.env` auto-loaded if present; `.regressguard/.env` added to default .gitignore suggestion; `rg doctor` warns if token looks like a raw secret in config.json | NOT STARTED |
+| E13-T3 | POST/PUT body support (config-defined) | Routes in config can include a `body` field; `rg snapshot`/`rg check` sends the body as JSON for non-GET routes | Config route `{ method: "POST", path: "/api/login", body: { email: "test@test.com", password: "test" } }` sends body; response is captured and schema-hashed like GET routes; routes without body are still skipped with clear reason | NOT STARTED |
+| E13-T4 | Auto-server lifecycle | `rg check --auto-server` reads `serverCommand` from config (default: `npm run dev`), spawns it, waits for server URL to respond (max 15s), runs check, kills server on exit | Server starts and stops cleanly; port conflicts produce actionable error; process group killed on SIGINT; works on macOS and Linux; `--auto-server` is opt-in, not default | NOT STARTED |
+| E13-T5 | MCP server for AI agents | `rg mcp serve` exposes `snapshot`, `check`, `status` as MCP tools that Claude Code, Cursor, and other MCP-compatible agents can call directly | MCP server starts on stdio transport; `check` tool returns structured result; AI agent can call `check` after making changes without human intervention; graceful error handling for missing config/snapshot | NOT STARTED |
+| E13-T6 | `rg explain <route>` debug command | Shows the before (snapshot) and after (live) response for a specific route with field-level diff highlighting | `rg explain "GET /api/users"` shows status, headers, and body diff; added/removed/changed fields highlighted; works without running full check; supports --json | NOT STARTED |
+| E13-T7 | `rg upgrade` self-update | Checks GitHub releases for newer version and replaces the binary in-place | `rg upgrade` downloads latest release for current OS/arch; verifies checksum; replaces binary; prints old → new version; `rg upgrade --check` shows available update without installing | NOT STARTED |
+| E13-T8 | GitHub Action | `regressguard/action@v1` runs `rg check --json` on PRs and posts a comment with the result summary | Action installs rg, runs check, posts pass/fail comment on PR; critical findings block merge (via check status); configurable via `.github/workflows/regressguard.yml` | NOT STARTED |
 
 ## **11.13 Epic E8: Launch Feedback**
 

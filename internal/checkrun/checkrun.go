@@ -27,6 +27,7 @@ type Options struct {
 	JSON        bool
 	Verbose     bool
 	HookMode    bool
+	Since       string // git ref to scope routes by changed files (e.g. "HEAD~1", "main")
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -82,8 +83,24 @@ func Run(opts Options) (Result, error) {
 		_, _ = fmt.Fprintln(opts.Stderr, msg)
 	}
 
+	// E13-T1: scoped check — filter routes by changed files when --since is set.
+	routes := cfg.Routes
+	if opts.Since != "" {
+		changedFiles := gitDiffFiles(opts.ProjectRoot, opts.Since)
+		if len(changedFiles) > 0 {
+			filtered := filterRoutesByChangedFiles(routes, changedFiles, cfg.Framework)
+			if len(filtered) > 0 {
+				routes = filtered
+				if opts.Verbose {
+					_, _ = fmt.Fprintf(opts.Stderr, "%s Scoped to %d/%d routes (changed since %s)\n", ui.SymbolInfo, len(filtered), len(cfg.Routes), opts.Since)
+				}
+			}
+			// If no routes match changed files, run all routes (safe default).
+		}
+	}
+
 	// E9-T2: fast server-down detection.
-	if len(cfg.Routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
+	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
 			Title:       "rg check failed: dev server is not responding.",
 			Cause:       "The server at " + cfg.ServerURL + " did not respond within 500ms.",
@@ -126,18 +143,18 @@ func Run(opts Options) (Result, error) {
 
 	var routeSpinner *ui.Spinner
 	var routeProgress *ui.RouteProgress
-	if showSpinner && len(cfg.Routes) >= 4 {
-		routeInputs := make([]struct{ Method, Path string }, len(cfg.Routes))
-		for i, r := range cfg.Routes {
+	if showSpinner && len(routes) >= 4 {
+		routeInputs := make([]struct{ Method, Path string }, len(routes))
+		for i, r := range routes {
 			routeInputs[i] = struct{ Method, Path string }{r.Method, r.Path}
 		}
 		routeProgress = ui.NewRouteProgress(opts.Stderr, routeInputs)
 		routeProgress.Start()
-	} else if showSpinner && len(cfg.Routes) > 0 {
-		routeSpinner = ui.NewSpinner(opts.Stderr, fmt.Sprintf("Hitting %d routes...", len(cfg.Routes)))
+	} else if showSpinner && len(routes) > 0 {
+		routeSpinner = ui.NewSpinner(opts.Stderr, fmt.Sprintf("Hitting %d routes...", len(routes)))
 		routeSpinner.Start()
 	} else if opts.Verbose {
-		_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(cfg.Routes))
+		_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(routes))
 	}
 	var routeProgressWriter io.Writer
 	if opts.Verbose {
@@ -161,7 +178,7 @@ func Run(opts Options) (Result, error) {
 			}
 		}
 	}
-	routeResults := engine.HitRoutes(cfg.Routes, hitOpts, routeProgressWriter)
+	routeResults := engine.HitRoutes(routes, hitOpts, routeProgressWriter)
 	if routeProgress != nil {
 		routeProgress.Stop()
 	}
@@ -198,6 +215,16 @@ func Run(opts Options) (Result, error) {
 			SchemaHash:       rr.SchemaHash,
 			NormalizedSchema: rr.NormalizedSchema,
 			MS:               rr.MS,
+		}
+	}
+
+	// E13-T1: when scoped, pass through snapshot data for routes not in scope.
+	// This prevents false positives from routes that weren't checked.
+	if opts.Since != "" && len(routes) < len(cfg.Routes) {
+		for key, record := range snap.Routes {
+			if _, checked := afterSnap.Routes[key]; !checked {
+				afterSnap.Routes[key] = record
+			}
 		}
 	}
 
@@ -665,6 +692,77 @@ func updateStreak(projectRoot, status string) int {
 	}
 	_ = state.Save(projectRoot, s)
 	return s.CheckStreak
+}
+
+// gitDiffFiles returns all files changed since the given git ref.
+// Paths are returned relative to the project root (not the git root).
+func gitDiffFiles(root, since string) []string {
+	// Get the relative path from git root to our project root.
+	prefixCmd := exec.Command("git", "-C", root, "rev-parse", "--show-prefix")
+	prefixOut, _ := prefixCmd.Output()
+	prefix := strings.TrimSpace(string(prefixOut))
+
+	cmd := exec.Command("git", "-C", root, "diff", "--name-only", since)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		// Strip the prefix to get paths relative to project root.
+		if prefix != "" && strings.HasPrefix(line, prefix) {
+			files = append(files, strings.TrimPrefix(line, prefix))
+		} else if prefix == "" {
+			files = append(files, line)
+		}
+	}
+	return files
+}
+
+// filterRoutesByChangedFiles returns only routes whose source files are in the changed set.
+// For Next.js App Router: /api/users → app/api/users/route.ts
+// For Express/Hono: falls back to all routes (can't reliably map).
+func filterRoutesByChangedFiles(routes []config.Route, changedFiles []string, framework string) []config.Route {
+	if framework != "nextjs-app-router" {
+		// For non-Next.js frameworks, we can't reliably map routes to files.
+		// Return nil to signal "run all routes."
+		return nil
+	}
+
+	changedSet := make(map[string]bool, len(changedFiles))
+	for _, f := range changedFiles {
+		changedSet[f] = true
+	}
+
+	var filtered []config.Route
+	for _, route := range routes {
+		// Map route path to likely source file(s).
+		// /api/users → app/api/users/route.ts, src/app/api/users/route.ts
+		routeFile := routePathToFile(route.Path)
+		if changedSet[routeFile] || changedSet["src/"+routeFile] {
+			filtered = append(filtered, route)
+		}
+	}
+	return filtered
+}
+
+// routePathToFile converts a route path to its Next.js App Router file path.
+// /api/users → app/api/users/route.ts
+// /api/users/:id → app/api/users/[id]/route.ts
+func routePathToFile(routePath string) string {
+	// Remove leading slash.
+	path := strings.TrimPrefix(routePath, "/")
+	// Convert :param to [param].
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, ":") {
+			parts[i] = "[" + strings.TrimPrefix(part, ":") + "]"
+		}
+	}
+	return "app/" + strings.Join(parts, "/") + "/route.ts"
 }
 
 func writeLines(w io.Writer, lines []string) error {

@@ -175,11 +175,13 @@ func newCheckCommand() *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
+		since, _ := cmd.Flags().GetString("since")
 
 		result, err := checkrun.Run(checkrun.Options{
 			ProjectRoot: ".",
 			JSON:        jsonMode,
 			Verbose:     verbose,
+			Since:       since,
 			Stdout:      cmd.OutOrStdout(),
 			Stderr:      cmd.ErrOrStderr(),
 		})
@@ -201,6 +203,7 @@ func newCheckCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
+	cmd.Flags().String("since", "", "only check routes affected by changes since this git ref (e.g. HEAD~1, main)")
 	return cmd
 }
 
