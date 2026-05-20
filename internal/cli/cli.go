@@ -19,6 +19,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/snapshotrun"
 	"github.com/Bharath-code/regressguard/internal/statusrun"
 	"github.com/Bharath-code/regressguard/internal/ui"
+	"github.com/Bharath-code/regressguard/internal/upgraderun"
 	"github.com/spf13/cobra"
 )
 
@@ -85,6 +86,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newConfigCommand(),
 		newDoctorCommand(),
 		newVersionCommand(build),
+		newUpgradeCommand(build),
 	)
 	configureCompletionHelp(root)
 
@@ -384,6 +386,33 @@ func newVersionCommand(build BuildInfo) *cobra.Command {
 		},
 	}
 	cmd.SetHelpTemplate(commandHelpTemplate("rg version"))
+	return cmd
+}
+
+func newUpgradeCommand(build BuildInfo) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "upgrade",
+		Short: "Update rg to the latest version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			checkOnly, _ := cmd.Flags().GetBool("check")
+
+			_, err := upgraderun.Run(upgraderun.Options{
+				CurrentVersion: build.Version,
+				CheckOnly:      checkOnly,
+				Stdout:         cmd.OutOrStdout(),
+				Stderr:         cmd.ErrOrStderr(),
+			})
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					return issue
+				}
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg upgrade"))
+	cmd.Flags().Bool("check", false, "check for updates without installing")
 	return cmd
 }
 
