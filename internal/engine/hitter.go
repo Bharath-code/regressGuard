@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -99,12 +100,12 @@ func HitRoutes(routes []config.Route, opts HitOptions, progressWriter io.Writer)
 			}
 			continue
 		}
-		if requiresBody(route.Method) {
+		if requiresBody(route.Method) && len(route.Body) == 0 {
 			results[i] = RouteResult{
 				Method:     route.Method,
 				Path:       route.Path,
 				Skipped:    true,
-				SkipReason: "body params required — add to skip list or provide body in config",
+				SkipReason: "body required — add \"body\": {...} to this route in config",
 			}
 			continue
 		}
@@ -154,7 +155,12 @@ func hitRoute(client *http.Client, route config.Route, opts HitOptions) RouteRes
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRouteTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, route.Method, url, nil)
+	var bodyReader io.Reader
+	if len(route.Body) > 0 {
+		bodyReader = bytes.NewReader(route.Body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, route.Method, url, bodyReader)
 	if err != nil {
 		return RouteResult{
 			Method:     route.Method,
@@ -162,6 +168,11 @@ func hitRoute(client *http.Client, route config.Route, opts HitOptions) RouteRes
 			Skipped:    true,
 			SkipReason: "could not build request: " + err.Error(),
 		}
+	}
+
+	// Set Content-Type for requests with a body.
+	if len(route.Body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	applyAuth(req, opts.Auth)

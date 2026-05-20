@@ -35,9 +35,10 @@ type Auth struct {
 }
 
 type Route struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
-	Skip   bool   `json:"skip,omitempty"`
+	Method string          `json:"method"`
+	Path   string          `json:"path"`
+	Skip   bool            `json:"skip,omitempty"`
+	Body   json.RawMessage `json:"body,omitempty"`
 }
 
 func Path(root string) string {

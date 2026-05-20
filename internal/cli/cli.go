@@ -203,7 +203,7 @@ func newCheckCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
-	cmd.Flags().String("since", "", "only check routes affected by changes since this git ref (e.g. HEAD~1, main)")
+	cmd.Flags().String("since", "", "scope to routes changed since git ref (HEAD~1, main)")
 	return cmd
 }
 
