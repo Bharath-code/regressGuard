@@ -17,6 +17,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/engine"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
+	"github.com/Bharath-code/regressguard/internal/state"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
@@ -244,7 +245,11 @@ func Run(opts Options) (Result, error) {
 	}
 
 	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime))
+
+	// E12-T4: update check streak in state.
+	streak := updateStreak(opts.ProjectRoot, result.Status)
+
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime), streak)
 }
 
 func loadConfig(root string) (config.Config, error) {
@@ -349,7 +354,7 @@ func paint(w io.Writer, color ui.Color, text string) string {
 }
 
 // writeHuman renders the appropriate Flow screen (E/F/G) to stdout.
-func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string, elapsed time.Duration) error {
+func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string, elapsed time.Duration, streak int) error {
 	_ = stderr
 	switch result.Status {
 	case "critical":
@@ -357,12 +362,12 @@ func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult,
 	case "warning":
 		return writeHumanWarning(stdout, result, diff, elapsed)
 	default:
-		return writeHumanPass(stdout, result, before, after, elapsed)
+		return writeHumanPass(stdout, result, before, after, elapsed, streak)
 	}
 }
 
 // writeHumanPass renders Flow E — clean check with styled banner and celebration.
-func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration) error {
+func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration, streak int) error {
 	isTTY := ui.ColorEnabled(stdout)
 
 	// Styled banner for the verdict.
@@ -390,7 +395,11 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 	ui.StaggeredPrint(stdout, lines)
 
 	// Success celebration on the final line.
-	ui.SuccessCelebration(stdout, paint(stdout, ui.ColorOK, "Safe to commit."))
+	safeMsg := paint(stdout, ui.ColorOK, "Safe to commit.")
+	if streak > 1 {
+		safeMsg += "  " + paint(stdout, ui.ColorMuted, fmt.Sprintf("%d clean checks in a row.", streak))
+	}
+	ui.SuccessCelebration(stdout, safeMsg)
 
 	// Footer with timing.
 	_, _ = fmt.Fprintln(stdout)
@@ -630,6 +639,20 @@ func formatAge(d time.Duration) string {
 		return fmt.Sprintf("%dd", days)
 	}
 	return fmt.Sprintf("%dh", hours)
+}
+
+// updateStreak increments the check streak on pass/warning, resets on critical.
+// Returns the new streak count.
+func updateStreak(projectRoot, status string) int {
+	s := state.Load(projectRoot)
+	switch status {
+	case "pass", "warning":
+		s.CheckStreak++
+	case "critical":
+		s.CheckStreak = 0
+	}
+	_ = state.Save(projectRoot, s)
+	return s.CheckStreak
 }
 
 func writeLines(w io.Writer, lines []string) error {
