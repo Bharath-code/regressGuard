@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Bharath-code/regressguard/internal/checkrun"
+	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/configrun"
 	"github.com/Bharath-code/regressguard/internal/doctorrun"
 	"github.com/Bharath-code/regressguard/internal/failures"
@@ -59,6 +60,15 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// E12-T3: if in a configured project, show status + help.
+			if config.Exists(".") {
+				_, _ = statusrun.Run(statusrun.Options{
+					ProjectRoot: ".",
+					Stdout:      cmd.OutOrStdout(),
+					Stderr:      cmd.ErrOrStderr(),
+				})
+				_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			}
 			return cmd.Help()
 		},
 	}
