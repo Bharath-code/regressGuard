@@ -176,12 +176,14 @@ func newCheckCommand() *cobra.Command {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		since, _ := cmd.Flags().GetString("since")
+		autoServer, _ := cmd.Flags().GetBool("auto-server")
 
 		result, err := checkrun.Run(checkrun.Options{
 			ProjectRoot: ".",
 			JSON:        jsonMode,
 			Verbose:     verbose,
 			Since:       since,
+			AutoServer:  autoServer,
 			Stdout:      cmd.OutOrStdout(),
 			Stderr:      cmd.ErrOrStderr(),
 		})
@@ -204,6 +206,7 @@ func newCheckCommand() *cobra.Command {
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
 	cmd.Flags().String("since", "", "scope to routes changed since git ref (HEAD~1, main)")
+	cmd.Flags().Bool("auto-server", false, "spawn dev server from config, run check, kill on exit")
 	return cmd
 }
 

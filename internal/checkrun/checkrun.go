@@ -5,12 +5,15 @@
 package checkrun
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
@@ -28,6 +31,7 @@ type Options struct {
 	Verbose     bool
 	HookMode    bool
 	Since       string // git ref to scope routes by changed files (e.g. "HEAD~1", "main")
+	AutoServer  bool   // spawn dev server from config, wait for ready, kill on exit
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -96,6 +100,123 @@ func Run(opts Options) (Result, error) {
 				}
 			}
 			// If no routes match changed files, run all routes (safe default).
+		}
+	}
+
+	// E13-T4: auto-server lifecycle — spawn dev server if --auto-server is set.
+	var serverProcess *exec.Cmd
+	if opts.AutoServer && len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
+		serverCmd := cfg.ServerCommand
+		if serverCmd == "" {
+			serverCmd = "npm run dev"
+		}
+
+		if opts.Verbose {
+			_, _ = fmt.Fprintf(opts.Stderr, "%s Starting server: %s\n", ui.SymbolRunning, serverCmd)
+		}
+
+		// Spawn the server process in its own process group for clean cleanup.
+		serverProcess = exec.Command("sh", "-c", serverCmd)
+		serverProcess.Dir = opts.ProjectRoot
+		serverProcess.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		serverProcess.Stdout = io.Discard
+		serverProcess.Stderr = io.Discard
+		if opts.Verbose {
+			serverProcess.Stderr = opts.Stderr
+		}
+
+		if err := serverProcess.Start(); err != nil {
+			return Result{}, failures.Actionable{
+				Title:       "rg check failed: could not start dev server.",
+				Cause:       err.Error(),
+				Next:        serverCmd,
+				MoreContext: "rg check --help",
+			}
+		}
+
+		// Ensure cleanup on exit (including SIGINT/SIGTERM).
+		serverDone := make(chan struct{})
+		cleanupServer := func() {
+			select {
+			case <-serverDone:
+				return // already cleaned up
+			default:
+			}
+			if serverProcess.Process != nil {
+				// Kill the entire process group.
+				_ = syscall.Kill(-serverProcess.Process.Pid, syscall.SIGTERM)
+				// Give it a moment to shut down gracefully, then force kill.
+				done := make(chan struct{})
+				go func() {
+					_ = serverProcess.Wait()
+					close(done)
+				}()
+				select {
+				case <-done:
+				case <-time.After(3 * time.Second):
+					_ = syscall.Kill(-serverProcess.Process.Pid, syscall.SIGKILL)
+					_ = serverProcess.Wait()
+				}
+			}
+			close(serverDone)
+		}
+		defer cleanupServer()
+
+		// Handle SIGINT/SIGTERM to ensure server is killed.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			select {
+			case <-sigCh:
+				cleanupServer()
+				os.Exit(2)
+			case <-serverDone:
+				// Server already cleaned up, stop listening.
+				signal.Stop(sigCh)
+			}
+		}()
+
+		// Poll until server is ready (max 15s).
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		var showSpinnerServer *ui.Spinner
+		showSpinnerForServer := !opts.JSON && !opts.Verbose && !opts.HookMode && ui.ColorEnabled(opts.Stderr)
+		if showSpinnerForServer {
+			showSpinnerServer = ui.NewSpinner(opts.Stderr, "Waiting for server...")
+			showSpinnerServer.Start()
+		}
+
+		serverReady := false
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				if showSpinnerServer != nil {
+					showSpinnerServer.StopFailed("Server did not respond within 15s")
+				}
+				cleanupServer()
+				return Result{}, failures.Actionable{
+					Title:       "rg check failed: dev server did not become ready within 15s.",
+					Cause:       "Started \"" + serverCmd + "\" but " + cfg.ServerURL + " never responded.",
+					Next:        serverCmd,
+					MoreContext: "rg doctor",
+				}
+			case <-ticker.C:
+				if engine.ServerReachable(cfg.ServerURL) {
+					serverReady = true
+				}
+			}
+			if serverReady {
+				break
+			}
+		}
+
+		if showSpinnerServer != nil {
+			showSpinnerServer.StopSuccess("Server ready at " + cfg.ServerURL)
+		} else if opts.Verbose {
+			_, _ = fmt.Fprintf(opts.Stderr, "%s Server ready at %s\n", ui.SymbolPass, cfg.ServerURL)
 		}
 	}
 

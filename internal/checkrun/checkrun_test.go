@@ -3,6 +3,8 @@ package checkrun
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -645,5 +647,233 @@ func TestFormatAge(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("formatAge(%v) = %q, want %q", tt.duration, got, tt.want)
 		}
+	}
+}
+
+// --- E13-T4: Auto-server lifecycle ---
+
+func TestRun_autoServer_spawnsAndKillsServer(t *testing.T) {
+	// Create a script that starts an HTTP server.
+	dir := t.TempDir()
+
+	// Find a free port for the test server.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	serverURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// Write a small Python server script.
+	serverScript := filepath.Join(dir, "server.sh")
+	scriptContent := fmt.Sprintf(`#!/bin/sh
+exec python3 -c "
+import http.server, socketserver, json
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'ok': True}).encode())
+    def log_message(self, format, *args):
+        pass
+
+with socketserver.TCPServer(('127.0.0.1', %d), H) as httpd:
+    httpd.serve_forever()
+"
+`, port)
+	if err := os.WriteFile(serverScript, []byte(scriptContent), 0o755); err != nil {
+		t.Fatalf("write server script: %v", err)
+	}
+
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:       1,
+		TestCommand:   testCmd,
+		ServerURL:     serverURL,
+		ServerCommand: "sh " + serverScript,
+		Routes:        []config.Route{{Method: "GET", Path: "/"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/", Status: 200, SchemaHash: "", MS: 10},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{
+		ProjectRoot: dir,
+		AutoServer:  true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	// Result should not be an error — the check should have completed.
+	if result.Status == "" {
+		t.Error("expected a non-empty result status")
+	}
+
+	// The check should have run successfully (server was spawned and used).
+	// In non-verbose, non-TTY mode, stderr won't have the "Starting server" message
+	// but the function should complete without the server-down error.
+	out := stdout.String()
+	if !strings.Contains(out, "check") {
+		t.Errorf("expected check output, got: %s", out)
+	}
+}
+
+func TestRun_autoServer_timeoutWhenServerNeverReady(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow test in short mode")
+	}
+
+	dir := t.TempDir()
+
+	// Use a port that nothing is listening on.
+	serverURL := "http://127.0.0.1:19999"
+
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	// Use a command that will never make the server ready (just sleeps).
+	cfg := config.Config{
+		Version:       1,
+		TestCommand:   testCmd,
+		ServerURL:     serverURL,
+		ServerCommand: "sleep 30",
+		Routes:        []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes:    map[string]snapshot.RouteRecord{},
+	})
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		AutoServer:  true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+
+	// Should fail with actionable error about server not becoming ready.
+	if err == nil {
+		t.Fatal("expected error when server never becomes ready")
+	}
+	if !strings.Contains(err.Error(), "did not become ready") {
+		t.Errorf("expected 'did not become ready' error, got: %v", err)
+	}
+}
+
+func TestRun_autoServer_skippedWhenServerAlreadyRunning(t *testing.T) {
+	// If server is already reachable, auto-server should not spawn anything.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:       1,
+		TestCommand:   testCmd,
+		ServerURL:     srv.URL,
+		ServerCommand: "echo should-not-run",
+		Routes:        []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/api/health")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "", MS: 10},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		AutoServer:  true,
+		Verbose:     true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should NOT have tried to start a server.
+	stderrStr := stderr.String()
+	if strings.Contains(stderrStr, "Starting server") {
+		t.Errorf("should not start server when already reachable, got: %s", stderrStr)
+	}
+}
+
+func TestRun_autoServer_portConflictError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow test in short mode")
+	}
+
+	dir := t.TempDir()
+
+	// Use a command that will fail to start.
+	serverURL := "http://127.0.0.1:19997"
+
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:       1,
+		TestCommand:   testCmd,
+		ServerURL:     serverURL,
+		ServerCommand: "nonexistent-command-xyz",
+		Routes:        []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 3, Failed: 0},
+		Routes:    map[string]snapshot.RouteRecord{},
+	})
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{
+		ProjectRoot: dir,
+		AutoServer:  true,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+
+	// The command will start (sh -c "nonexistent-command-xyz") but the server
+	// will never respond, so we expect a timeout error.
+	if err == nil {
+		t.Fatal("expected error for failed server command")
+	}
+	errStr := err.Error()
+	if !strings.Contains(errStr, "did not become ready") && !strings.Contains(errStr, "could not start") {
+		t.Errorf("expected server start/ready error, got: %v", err)
 	}
 }

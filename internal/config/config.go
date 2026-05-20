@@ -21,6 +21,7 @@ type Config struct {
 	Framework      string   `json:"framework"`
 	TestCommand    string   `json:"testCommand"`
 	ServerURL      string   `json:"serverUrl"`
+	ServerCommand  string   `json:"serverCommand,omitempty"`
 	Auth           Auth     `json:"auth"`
 	IgnoreFields   []string `json:"ignoreFields"`
 	Routes         []Route  `json:"routes"`
