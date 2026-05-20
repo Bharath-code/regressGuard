@@ -1084,8 +1084,9 @@ Default status for all v1 tasks below: NOT STARTED.
 | E7 Distribution | User can install and verify rg on a fresh machine | Sections 7, 13, 16 | P0 | DONE |
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 | E9 10x Value Improvements | Field diff, fast server detection, git context, tight hook output | Section 11.11 | P0 | DONE |
-| E10 Launch Polish | Colored output, parallel routes, server-down in snapshot, Express discovery, snapshot age warning | Section 11.12 | P1 | NOT STARTED |
-| E11 Terminal Micro-Interactions | Spinners, live progress, staggered reveals, elapsed timers — world-class CLI feel | Section 11.12b | P1 | NOT STARTED |
+| E10 Launch Polish | Colored output, parallel routes, server-down in snapshot, Express discovery, snapshot age warning | Section 11.12 | P1 | DONE |
+| E11 Terminal Micro-Interactions | Spinners, live progress, staggered reveals, elapsed timers — world-class CLI feel | Section 11.12b | P1 | DONE |
+| E12 Habit-Forming Workflow | Status command, hook nudge, session streak, first-run celebration — zero-friction habit loop | Section 11.12c | P1 | NOT STARTED |
 
 Priority definitions:
 
@@ -1233,6 +1234,18 @@ Goal: Make RegressGuard feel alive, modern, and world-class during execution. Ad
 | E11-T7 | Spinner-to-checkmark transition | When a phase completes, the spinner character morphs into the final symbol (OK/!/X) with a brief pause | Transition visible on TTY; non-TTY prints final symbol directly | DONE |
 | E11-T8 | Elapsed timer | Long-running phases (>1s) show a live elapsed timer next to the spinner: "Running tests... 2.3s" | Timer updates every 100ms on TTY; not shown in non-TTY; final duration shown in result line | DONE |
 
+## **11.12c Epic E12: Habit-Forming Workflow**
+
+Goal: Reduce friction to zero and create a natural habit loop. Make RegressGuard feel like part of the developer's muscle memory — not a tool they have to remember to use.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E12-T1 | `rg status` quick-glance command | Sub-second command that shows snapshot age, route count, config health, and hook status without running tests or hitting routes | `rg status` completes in <200ms; shows snapshot age, route count, test command, hook installed/not; exits 0; supports --json | DONE |
+| E12-T2 | Post-snapshot hook nudge | After first successful `rg snapshot`, if git hook is not installed, print a one-time suggestion: "Protect every commit: rg hook install" | Nudge appears only once (tracked in config or local state); does not appear after hook is installed; suppressed in --json mode | NOT STARTED |
+| E12-T3 | `rg` bare command shows status when configured | When run in a configured project (config exists), `rg` with no args shows a compact status instead of just help — snapshot age, last check result, hook status | `rg` in configured project shows status + help; `rg` outside project shows normal help; does not run tests/routes | NOT STARTED |
+| E12-T4 | Session streak in pass screen | Pass screen shows "N clean checks in a row" counter, stored in a local state file (.regressguard/state.json) | Counter increments on pass, resets on critical; shown in pass screen only; not in --json stdout (goes to stderr or omitted) | NOT STARTED |
+| E12-T5 | First-run celebration | First time `rg check` passes on a project, show a distinct "Setup complete" message with a brief explanation of the workflow | Appears only on first pass (tracked in state); subsequent passes show normal screen; suppressed in --json/hook modes | NOT STARTED |
+
 ## **11.13 Epic E8: Launch Feedback**
 
 Goal: Validate demand and usability with real developers before expanding scope.
@@ -1260,7 +1273,7 @@ A task is DONE only when all are true:
 
 | Gate | Requirement | Status |
 | :---- | :---- | :---- |
-| G1 Core path | rg init -> rg snapshot -> rg check works on a real Next.js project | NOT STARTED |
+| G1 Core path | rg init -> rg snapshot -> rg check works on a real Next.js project | DONE |
 | G2 Safety | Critical regression exits 1 and blocks git hook | DONE |
 | G3 Scriptability | rg check --json pipes to jq with no stdout pollution | DONE |
 | G4 UX quality | All quality-bar screenshots from Section 6.8 are captured and pass | NOT STARTED |

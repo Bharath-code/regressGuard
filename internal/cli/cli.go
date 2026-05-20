@@ -15,6 +15,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/initrun"
 	"github.com/Bharath-code/regressguard/internal/snapshotrun"
+	"github.com/Bharath-code/regressguard/internal/statusrun"
 	"github.com/Bharath-code/regressguard/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -67,6 +68,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newInitCommand(),
 		newSnapshotCommand(),
 		newCheckCommand(),
+		newStatusCommand(),
 		newHookCommand(),
 		newConfigCommand(),
 		newDoctorCommand(),
@@ -189,6 +191,23 @@ func newCheckCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
+	return cmd
+}
+
+func newStatusCommand() *cobra.Command {
+	cmd := stubCommand("status", "Quick health check — snapshot age, routes, hook status", "rg status")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		jsonMode, _ := cmd.Flags().GetBool("json")
+
+		_, err := statusrun.Run(statusrun.Options{
+			ProjectRoot: ".",
+			JSON:        jsonMode,
+			Stdout:      cmd.OutOrStdout(),
+			Stderr:      cmd.ErrOrStderr(),
+		})
+		return err
+	}
+	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	return cmd
 }
 
@@ -399,6 +418,7 @@ Commands:
   init       Configure RegressGuard for this project
   snapshot   Record the current passing state
   check      Compare current state against the snapshot
+  status     Quick health check (sub-second)
   hook       Install or remove git hooks
   config     View or edit project config
   doctor     Diagnose setup issues
