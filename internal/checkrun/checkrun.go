@@ -515,6 +515,8 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 
 	footerLines = append(footerLines, ui.NextSection(stdout, "rg check --verbose", "git diff")...)
 	footerLines = append(footerLines, "")
+	footerLines = append(footerLines, paint(stdout, ui.ColorMuted, "If this change is intentional: rg snapshot"))
+	footerLines = append(footerLines, "")
 	ui.StaggeredPrint(stdout, footerLines)
 
 	// Critical reveal for the final line.

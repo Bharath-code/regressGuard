@@ -216,7 +216,7 @@ func TestRun_criticalScreen_statusChange(t *testing.T) {
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"check", "X", "regressions detected", "Commit blocked"} {
+	for _, want := range []string{"check", "X", "regressions detected", "Commit blocked", "If this change is intentional: rg snapshot"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("critical screen missing %q\nGot:\n%s", want, out)
 		}
