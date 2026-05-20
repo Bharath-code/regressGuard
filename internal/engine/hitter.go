@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
@@ -42,6 +43,9 @@ type HitOptions struct {
 	Verbose      bool
 	// HTTPClient allows injection of a custom client (useful in tests).
 	HTTPClient *http.Client
+	// OnRouteComplete is called when a route finishes (for live progress).
+	// index is the position in the routes slice, result is the outcome.
+	OnRouteComplete func(index int, result RouteResult)
 }
 
 // ServerReachable probes the server URL with a short timeout.
@@ -63,8 +67,9 @@ func ServerReachable(serverURL string) bool {
 }
 
 // HitRoutes calls each non-skipped route in the config and returns results.
-// Routes that require a body (POST/PUT/PATCH with no body configured) are
-// skipped gracefully. Progress lines are written to progressWriter when set.
+// Routes are hit concurrently (max 5 goroutines) for speed, but results are
+// returned in the same order as the input routes for deterministic output.
+// Progress lines are written to progressWriter when set.
 func HitRoutes(routes []config.Route, opts HitOptions, progressWriter io.Writer) []RouteResult {
 	client := opts.HTTPClient
 	if client == nil {
@@ -75,46 +80,71 @@ func HitRoutes(routes []config.Route, opts HitOptions, progressWriter io.Writer)
 		client = &http.Client{Timeout: timeout}
 	}
 
-	results := make([]RouteResult, 0, len(routes))
-	for _, route := range routes {
+	results := make([]RouteResult, len(routes))
+
+	// Separate skipped routes (resolved immediately) from hittable routes.
+	type hittable struct {
+		index int
+		route config.Route
+	}
+	var toHit []hittable
+
+	for i, route := range routes {
 		if route.Skip {
-			results = append(results, RouteResult{
+			results[i] = RouteResult{
 				Method:     route.Method,
 				Path:       route.Path,
 				Skipped:    true,
 				SkipReason: "marked skip in config",
-			})
-			if progressWriter != nil {
-				_, _ = fmt.Fprintf(progressWriter, "  - SKIPPED %s %s (config)\n", route.Method, route.Path)
 			}
 			continue
 		}
-
-		// Skip routes that require a body and have no body configured.
 		if requiresBody(route.Method) {
-			results = append(results, RouteResult{
+			results[i] = RouteResult{
 				Method:     route.Method,
 				Path:       route.Path,
 				Skipped:    true,
 				SkipReason: "body params required — add to skip list or provide body in config",
-			})
-			if progressWriter != nil {
-				_, _ = fmt.Fprintf(progressWriter, "  - SKIPPED %s %s (body required)\n", route.Method, route.Path)
 			}
 			continue
 		}
+		toHit = append(toHit, hittable{index: i, route: route})
+	}
 
-		result := hitRoute(client, route, opts)
-		results = append(results, result)
+	// Hit routes concurrently with a semaphore limiting to maxConcurrency.
+	const maxConcurrency = 5
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
 
-		if progressWriter != nil {
-			if result.Skipped {
-				_, _ = fmt.Fprintf(progressWriter, "  - SKIPPED %s %s (%s)\n", route.Method, route.Path, result.SkipReason)
+	for _, h := range toHit {
+		wg.Add(1)
+		go func(idx int, route config.Route) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire
+			defer func() { <-sem }() // release
+			results[idx] = hitRoute(client, route, opts)
+			// Notify live progress callback.
+			if opts.OnRouteComplete != nil {
+				opts.OnRouteComplete(idx, results[idx])
+			}
+		}(h.index, h.route)
+	}
+	wg.Wait()
+
+	// Write progress lines in order (after all results are collected).
+	if progressWriter != nil {
+		for i, route := range routes {
+			r := results[i]
+			if route.Skip {
+				_, _ = fmt.Fprintf(progressWriter, "  - SKIPPED %s %s (config)\n", r.Method, r.Path)
+			} else if r.Skipped {
+				_, _ = fmt.Fprintf(progressWriter, "  - SKIPPED %s %s (%s)\n", r.Method, r.Path, r.SkipReason)
 			} else {
-				_, _ = fmt.Fprintf(progressWriter, "  > %s %s  %d  %dms\n", route.Method, route.Path, result.Status, result.MS)
+				_, _ = fmt.Fprintf(progressWriter, "  > %s %s  %d  %dms\n", r.Method, r.Path, r.Status, r.MS)
 			}
 		}
 	}
+
 	return results
 }
 

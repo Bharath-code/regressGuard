@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 )
@@ -140,6 +142,82 @@ func TestBuildURL(t *testing.T) {
 		got := buildURL(tc.base, tc.path)
 		if got != tc.want {
 			t.Errorf("buildURL(%q, %q) = %q, want %q", tc.base, tc.path, got, tc.want)
+		}
+	}
+}
+
+func TestHitRoutes_parallelFasterThanSequential(t *testing.T) {
+	// Each route handler sleeps 200ms. With 10 routes sequentially that's 2s+.
+	// With max 5 concurrency, it should complete in ~400-600ms (2 batches).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	routes := make([]config.Route, 10)
+	for i := range routes {
+		routes[i] = config.Route{Method: "GET", Path: fmt.Sprintf("/api/route%d", i)}
+	}
+
+	opts := HitOptions{ServerURL: srv.URL, HTTPClient: srv.Client()}
+
+	start := time.Now()
+	results := HitRoutes(routes, opts, nil)
+	elapsed := time.Since(start)
+
+	// All 10 should succeed.
+	for i, r := range results {
+		if r.Skipped {
+			t.Errorf("route %d was skipped: %s", i, r.SkipReason)
+		}
+		if r.Status != 200 {
+			t.Errorf("route %d status = %d, want 200", i, r.Status)
+		}
+	}
+
+	// With concurrency of 5 and 200ms per route, 10 routes should take ~400-600ms.
+	// Sequential would take ~2000ms. We allow up to 1500ms as a generous bound.
+	if elapsed > 1500*time.Millisecond {
+		t.Errorf("expected parallel completion in <1500ms, took %v (sequential would be ~2s)", elapsed)
+	}
+}
+
+func TestHitRoutes_preservesOrder(t *testing.T) {
+	// Routes with varying response times should still be returned in config order.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// First route is slowest, last is fastest.
+		switch r.URL.Path {
+		case "/api/slow":
+			time.Sleep(150 * time.Millisecond)
+		case "/api/medium":
+			time.Sleep(100 * time.Millisecond)
+		case "/api/fast":
+			time.Sleep(50 * time.Millisecond)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	routes := []config.Route{
+		{Method: "GET", Path: "/api/slow"},
+		{Method: "GET", Path: "/api/medium"},
+		{Method: "GET", Path: "/api/fast"},
+	}
+	opts := HitOptions{ServerURL: srv.URL, HTTPClient: srv.Client()}
+	results := HitRoutes(routes, opts, nil)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	// Order must match input regardless of completion time.
+	expected := []string{"/api/slow", "/api/medium", "/api/fast"}
+	for i, want := range expected {
+		if results[i].Path != want {
+			t.Errorf("result[%d].Path = %q, want %q", i, results[i].Path, want)
 		}
 	}
 }

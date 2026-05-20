@@ -78,7 +78,13 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T2: run tests.
-	if opts.Verbose {
+	// E11-T3: show spinner during test execution on TTY.
+	showSpinner := !opts.JSON && !opts.Verbose && ui.ColorEnabled(opts.Stderr)
+	var testSpinner *ui.Spinner
+	if showSpinner {
+		testSpinner = ui.NewSpinner(opts.Stderr, "Running tests...")
+		testSpinner.Start()
+	} else if opts.Verbose {
 		_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolRunning+" Running tests...")
 	}
 	var testProgressWriter io.Writer
@@ -86,6 +92,14 @@ func Run(opts Options) (Result, error) {
 		testProgressWriter = opts.Stderr
 	}
 	testResult, testErr := engine.RunTests(cfg.TestCommand, opts.ProjectRoot, testProgressWriter)
+	if testSpinner != nil {
+		if testErr != nil {
+			testSpinner.StopFailed("Tests failed")
+		} else {
+			testLine := fmt.Sprintf("%-10s %d passed, %d failed", "Tests", testResult.Passed, testResult.Failed)
+			testSpinner.StopSuccess(testLine)
+		}
+	}
 	if testErr != nil {
 		// Surface as actionable — test command may be misconfigured.
 		return Result{}, failures.Actionable{
@@ -110,9 +124,38 @@ func Run(opts Options) (Result, error) {
 
 	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
 		serverDown = true
-		_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolWarning+" Dev server not responding at "+cfg.ServerURL+" — routes skipped")
-	} else {
-		if opts.Verbose {
+		if showSpinner {
+			_, _ = fmt.Fprint(opts.Stderr, "\r\033[K")
+		}
+		_, _ = fmt.Fprintln(opts.Stderr, ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning)+" Dev server not responding at "+cfg.ServerURL+" — routes skipped")
+	} else if len(routes) > 0 {
+		// E11-T5: live route progress table on TTY with 4+ routes.
+		var routeProgress *ui.RouteProgress
+		if showSpinner && len(routes) >= 4 {
+			routeInputs := make([]struct{ Method, Path string }, len(routes))
+			for i, r := range routes {
+				routeInputs[i] = struct{ Method, Path string }{r.Method, r.Path}
+			}
+			routeProgress = ui.NewRouteProgress(opts.Stderr, routeInputs)
+			routeProgress.Start()
+		} else if showSpinner {
+			// For fewer routes, just use a simple spinner.
+			routeSpinner := ui.NewSpinner(opts.Stderr, fmt.Sprintf("Hitting %d routes...", len(routes)))
+			routeSpinner.Start()
+			defer func() {
+				captured := 0
+				for _, rr := range routeResults {
+					if !rr.Skipped {
+						captured++
+					}
+				}
+				routeLine := fmt.Sprintf("%-10s %d captured", "Routes", captured)
+				if len(routeResults)-captured > 0 {
+					routeLine += fmt.Sprintf(", %d skipped", len(routeResults)-captured)
+				}
+				routeSpinner.StopSuccess(routeLine)
+			}()
+		} else if opts.Verbose {
 			_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(routes))
 		}
 		var routeProgressWriter io.Writer
@@ -125,7 +168,23 @@ func Run(opts Options) (Result, error) {
 			IgnoreFields: cfg.IgnoreFields,
 			Verbose:      opts.Verbose,
 		}
+		// Wire up live progress callback.
+		if routeProgress != nil {
+			hitOpts.OnRouteComplete = func(index int, result engine.RouteResult) {
+				if result.Skipped {
+					routeProgress.MarkSkipped(index)
+				} else if result.Status >= 500 {
+					routeProgress.MarkFailed(index)
+				} else {
+					routeProgress.MarkDone(index, result.Status, result.MS)
+				}
+			}
+		}
 		routeResults = engine.HitRoutes(routes, hitOpts, routeProgressWriter)
+
+		if routeProgress != nil {
+			routeProgress.Stop()
+		}
 	}
 
 	captured := 0
@@ -270,11 +329,8 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 		)
 	}
 
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(stdout, line); err != nil {
-			return err
-		}
-	}
+	// E11-T6: staggered reveal for result lines on TTY.
+	ui.StaggeredPrint(stdout, lines)
 	return nil
 }
 

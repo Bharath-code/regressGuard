@@ -1085,6 +1085,7 @@ Default status for all v1 tasks below: NOT STARTED.
 | E8 Launch Feedback | Founder learns from real users within 7 days | Sections 13, 16 | P0 | NOT STARTED |
 | E9 10x Value Improvements | Field diff, fast server detection, git context, tight hook output | Section 11.11 | P0 | DONE |
 | E10 Launch Polish | Colored output, parallel routes, server-down in snapshot, Express discovery, snapshot age warning | Section 11.12 | P1 | NOT STARTED |
+| E11 Terminal Micro-Interactions | Spinners, live progress, staggered reveals, elapsed timers — world-class CLI feel | Section 11.12b | P1 | NOT STARTED |
 
 Priority definitions:
 
@@ -1212,10 +1213,25 @@ Goal: Eliminate the remaining friction points and visual gaps before real users 
 | :---- | :---- | :---- | :---- | :---- |
 | E10-T1 | Colored TTY output | Pass/warning/critical screens use green/yellow/red ANSI colors when stdout is a TTY; colors disabled for NO_COLOR, FORCE_COLOR=0, TERM=dumb, non-TTY, and --json | `NO_COLOR=1 rg check` has 0 ANSI codes; piped output has 0 ANSI codes; `ui.Paint()` applied to symbols, status lines, headers, field diffs, and next-step commands; all tests pass with `bytes.Buffer` (no color injected) | DONE |
 | E10-T2 | Snapshot server-down handling | `rg snapshot` probes the dev server before hitting routes; if unreachable, skips route phase gracefully with a warning instead of failing or timing out per-route | `rg snapshot` with server down completes in <2s; output shows "! Dev server not responding — routes skipped"; tests still run; snapshot is saved with 0 routes | DONE |
-| E10-T3 | Parallel route hitting | Routes are hit concurrently (max 5 goroutines) instead of sequentially; reduces snapshot/check time for projects with 10+ routes | Benchmark: 10 routes complete in <3s instead of 10s; concurrency limit prevents server overload; results are deterministic (same order as config) | NOT STARTED |
+| E10-T3 | Parallel route hitting | Routes are hit concurrently (max 5 goroutines) instead of sequentially; reduces snapshot/check time for projects with 10+ routes | Benchmark: 10 routes complete in <3s instead of 10s; concurrency limit prevents server overload; results are deterministic (same order as config) | DONE |
 | E10-T4 | Snapshot age warning | `rg check` prints a non-blocking warning when the snapshot is older than 24 hours | Output shows "! Snapshot is 3d old. Consider running rg snapshot for a fresh baseline." when stale; does not affect exit code; suppressed in --json mode (goes to stderr) | NOT STARTED |
 | E10-T5 | Express route discovery | `rg init` detects Express/Hono route patterns (`app.get`, `router.get`, etc.) via simple regex scan of source files; records discovered routes in config | Unit tests with Express fixture files; `rg init` in Express project discovers `/api/users`, `/api/health` routes; framework recorded as "express" | NOT STARTED |
 | E10-T6 | `rg snapshot` accept-change flow | When `rg check` finds an intentional schema change, the critical screen suggests `rg snapshot` as the "accept this change" action | Critical screen includes "If this change is intentional: rg snapshot" in the Next section | NOT STARTED |
+
+## **11.12b Epic E11: Terminal Micro-Interactions**
+
+Goal: Make RegressGuard feel alive, modern, and world-class during execution. Add Bubble Tea-powered spinners, live progress, and polished animations that rival Vercel CLI and Railway CLI — while gracefully degrading to static output in non-TTY/CI/JSON modes.
+
+| Task ID | Task | Acceptance Criteria | Evidence | Status |
+| :---- | :---- | :---- | :---- | :---- |
+| E11-T1 | Add Charm dependencies | `go get` Bubble Tea, Bubbles (spinner, progress), and Lip Gloss; binary size stays under 16 MB | `go.mod` includes `bubbletea`, `bubbles`, `lipgloss`; `go build` succeeds; binary size measured | DONE |
+| E11-T2 | Spinner component | `internal/ui/spinner.go` provides a reusable phase spinner (braille dots) that writes to stderr, respects TTY/NO_COLOR, and auto-disables in non-TTY/JSON/hook modes | Spinner animates on TTY stderr; no frames emitted in non-TTY; unit test verifies no output to non-TTY writer | DONE |
+| E11-T3 | Snapshot live progress | `rg snapshot` shows animated spinner for each phase: "Running tests...", "Hitting N routes...", "Saving snapshot..."; each spinner resolves to the final result line with timing | TTY output shows spinner → result transition; non-TTY output is unchanged; `--json` unaffected | DONE |
+| E11-T4 | Check live progress | `rg check` shows animated spinner for each phase: "Running tests...", "Hitting N routes...", "Comparing..."; resolves to final verdict | TTY output shows spinner → result transition; non-TTY output is unchanged | DONE |
+| E11-T5 | Live route progress table | During route hitting, show a live-updating table: route name + status (spinning/done/failed) that updates as each route completes concurrently | Table shows real-time route completion; final state matches result; only on TTY with >3 routes; `--verbose` shows full table, default shows count only | DONE |
+| E11-T6 | Staggered result reveal | Final result lines (Tests/Routes/Schemas) appear with 80ms stagger delay on TTY, giving a "dropping into place" feel | Visual stagger visible on TTY; no delay in non-TTY/JSON/hook modes; total added delay <300ms | DONE |
+| E11-T7 | Spinner-to-checkmark transition | When a phase completes, the spinner character morphs into the final symbol (OK/!/X) with a brief pause | Transition visible on TTY; non-TTY prints final symbol directly | DONE |
+| E11-T8 | Elapsed timer | Long-running phases (>1s) show a live elapsed timer next to the spinner: "Running tests... 2.3s" | Timer updates every 100ms on TTY; not shown in non-TTY; final duration shown in result line | DONE |
 
 ## **11.13 Epic E8: Launch Feedback**
 

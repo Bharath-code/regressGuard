@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
@@ -83,7 +84,14 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
-	if opts.Verbose {
+	// E11-T4: show spinners during check phases on TTY.
+	showSpinner := !opts.JSON && !opts.Verbose && !opts.HookMode && ui.ColorEnabled(opts.Stderr)
+
+	var testSpinner *ui.Spinner
+	if showSpinner {
+		testSpinner = ui.NewSpinner(opts.Stderr, "Running tests...")
+		testSpinner.Start()
+	} else if opts.Verbose {
 		_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolRunning+" Running tests...")
 	}
 	var testProgressWriter io.Writer
@@ -91,6 +99,14 @@ func Run(opts Options) (Result, error) {
 		testProgressWriter = opts.Stderr
 	}
 	testResult, testErr := engine.RunTests(cfg.TestCommand, opts.ProjectRoot, testProgressWriter)
+	if testSpinner != nil {
+		if testErr != nil {
+			testSpinner.StopFailed("Tests failed")
+		} else {
+			testLine := fmt.Sprintf("%-10s %d passed, %d failed", "Tests", testResult.Passed, testResult.Failed)
+			testSpinner.StopSuccess(testLine)
+		}
+	}
 	if testErr != nil {
 		return Result{}, failures.Actionable{
 			Title:       "rg check failed: test command error.",
@@ -100,7 +116,19 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
-	if opts.Verbose {
+	var routeSpinner *ui.Spinner
+	var routeProgress *ui.RouteProgress
+	if showSpinner && len(cfg.Routes) >= 4 {
+		routeInputs := make([]struct{ Method, Path string }, len(cfg.Routes))
+		for i, r := range cfg.Routes {
+			routeInputs[i] = struct{ Method, Path string }{r.Method, r.Path}
+		}
+		routeProgress = ui.NewRouteProgress(opts.Stderr, routeInputs)
+		routeProgress.Start()
+	} else if showSpinner && len(cfg.Routes) > 0 {
+		routeSpinner = ui.NewSpinner(opts.Stderr, fmt.Sprintf("Hitting %d routes...", len(cfg.Routes)))
+		routeSpinner.Start()
+	} else if opts.Verbose {
 		_, _ = fmt.Fprintf(opts.Stderr, ui.SymbolRunning+" Hitting %d routes...\n", len(cfg.Routes))
 	}
 	var routeProgressWriter io.Writer
@@ -113,7 +141,33 @@ func Run(opts Options) (Result, error) {
 		IgnoreFields: cfg.IgnoreFields,
 		Verbose:      opts.Verbose,
 	}
+	// Wire up live progress callback.
+	if routeProgress != nil {
+		hitOpts.OnRouteComplete = func(index int, result engine.RouteResult) {
+			if result.Skipped {
+				routeProgress.MarkSkipped(index)
+			} else if result.Status >= 500 {
+				routeProgress.MarkFailed(index)
+			} else {
+				routeProgress.MarkDone(index, result.Status, result.MS)
+			}
+		}
+	}
 	routeResults := engine.HitRoutes(cfg.Routes, hitOpts, routeProgressWriter)
+	if routeProgress != nil {
+		routeProgress.Stop()
+	}
+	if routeSpinner != nil {
+		routeLine := fmt.Sprintf("%-10s %d checked", "Routes", len(routeResults))
+		routeSpinner.StopSuccess(routeLine)
+	}
+
+	// E11-T4: comparing spinner.
+	var diffSpinner *ui.Spinner
+	if showSpinner {
+		diffSpinner = ui.NewSpinner(opts.Stderr, "Comparing...")
+		diffSpinner.Start()
+	}
 
 	afterSnap := snapshot.Snapshot{
 		Version: snapshot.Version,
@@ -140,6 +194,11 @@ func Run(opts Options) (Result, error) {
 	}
 
 	diff := engine.DiffSnapshots(snap, afterSnap)
+
+	// Stop the comparing spinner.
+	if diffSpinner != nil {
+		diffSpinner.Stop()
+	}
 
 	status := statusFromDiff(diff)
 	findings := make([]CheckFinding, 0, len(diff.Results))
@@ -295,40 +354,71 @@ func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult,
 	}
 }
 
-// writeHumanPass renders Flow E — clean check (green).
+// writeHumanPass renders Flow E — clean check with styled banner and celebration.
 func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot) error {
+	isTTY := ui.ColorEnabled(stdout)
+
+	// Styled banner for the verdict.
+	var header string
+	if isTTY {
+		header = ui.PassBanner(stdout, "PASS  No regressions detected")
+	} else {
+		header = ui.SymbolPass + " No regressions detected"
+	}
+
 	lines := []string{
 		paint(stdout, ui.ColorBold, "Check"),
 		"",
-		paint(stdout, ui.ColorOK, ui.SymbolPass+" No regressions detected"),
+		header,
 		"",
 		fmt.Sprintf("  Tests       %d passed, %d failed", after.Tests.Passed, after.Tests.Failed),
 		fmt.Sprintf("  Routes      %d unchanged", result.Summary.Passed),
 		"  Timing      within tolerance",
 		"",
-		paint(stdout, ui.ColorOK, "Safe to commit."),
 	}
-	return writeLines(stdout, lines)
+
+	// Write lines with stagger, then celebration.
+	ui.StaggeredPrint(stdout, lines)
+
+	// Success celebration on the final line.
+	ui.SuccessCelebration(stdout, paint(stdout, ui.ColorOK, "Safe to commit."))
+	return nil
 }
 
-// writeHumanWarning renders Flow G — warning only (yellow).
+// writeHumanWarning renders Flow G — warning only with styled banner.
 func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) error {
+	isTTY := ui.ColorEnabled(stdout)
 	n := result.Summary.Warnings
 	noun := "change"
 	if n != 1 {
 		noun = "changes"
 	}
 
+	// Styled banner for the verdict.
+	var header string
+	if isTTY {
+		header = ui.WarningBanner(stdout, fmt.Sprintf("WARNING  %d non-blocking %s", n, noun))
+	} else {
+		header = fmt.Sprintf("%s %d non-blocking %s", ui.SymbolWarning, n, noun)
+	}
+
 	lines := []string{
 		paint(stdout, ui.ColorBold, "Check"),
 		"",
-		paint(stdout, ui.ColorWarn, fmt.Sprintf("%s %d non-blocking %s", ui.SymbolWarning, n, noun)),
+		header,
 		"",
 		paint(stdout, ui.ColorMuted, fmtTableHeader()),
 	}
-	for _, r := range diff.Results {
+	for i, r := range diff.Results {
 		if r.Severity == engine.SeverityWarning {
-			lines = append(lines, fmtWarningRow(r))
+			// Animated table row with stagger.
+			row := fmtWarningRow(r)
+			if isTTY {
+				lines = append(lines, row)
+				_ = i // rows will be staggered by StaggeredPrint
+			} else {
+				lines = append(lines, row)
+			}
 		}
 	}
 
@@ -342,59 +432,82 @@ func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) 
 	return writeLines(stdout, lines)
 }
 
-// writeHumanCritical renders Flow F — critical regression (red).
+// writeHumanCritical renders Flow F — critical regression with styled banner and animated diff.
 func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult, gitFiles []string) error {
+	isTTY := ui.ColorEnabled(stdout)
 	n := result.Summary.Critical
 	noun := "regression"
 	if n != 1 {
 		noun = "regressions"
 	}
 
-	lines := []string{
+	// Styled banner for the verdict.
+	var header string
+	if isTTY {
+		header = ui.CriticalBanner(stdout, fmt.Sprintf("CRITICAL  %d %s detected", n, noun))
+	} else {
+		header = fmt.Sprintf("%s %d %s detected", ui.SymbolCritical, n, noun)
+	}
+
+	// Header section.
+	headerLines := []string{
 		paint(stdout, ui.ColorBold, "Check"),
 		"",
-		paint(stdout, ui.ColorFail, fmt.Sprintf("%s %d %s detected", ui.SymbolCritical, n, noun)),
+		header,
 		"",
 		paint(stdout, ui.ColorMuted, fmtCriticalTableHeader()),
 	}
+	ui.StaggeredPrint(stdout, headerLines)
 
+	// Animated diff table — rows slide in with delay.
+	rowDelay := 60 * time.Millisecond
 	for _, r := range diff.Results {
 		if r.Severity == engine.SeverityCritical {
-			lines = append(lines, fmtCriticalRow(r))
+			row := fmtCriticalRow(r)
+			ui.AnimatedTableRow(stdout, row, rowDelay)
 			if r.Type == engine.TypeSchema && len(r.FieldChanges) > 0 {
 				fieldLines := engine.FormatFieldChanges(r.FieldChanges)
 				for _, fl := range fieldLines {
+					var colored string
 					if strings.HasPrefix(strings.TrimSpace(fl), "-") {
-						lines = append(lines, paint(stdout, ui.ColorFail, fl))
+						colored = paint(stdout, ui.ColorFail, fl)
 					} else if strings.HasPrefix(strings.TrimSpace(fl), "+") {
-						lines = append(lines, paint(stdout, ui.ColorOK, fl))
+						colored = paint(stdout, ui.ColorOK, fl)
 					} else {
-						lines = append(lines, paint(stdout, ui.ColorWarn, fl))
+						colored = paint(stdout, ui.ColorWarn, fl)
 					}
+					ui.AnimatedTableRow(stdout, colored, 40*time.Millisecond)
 				}
 			}
 		}
 	}
 
-	lines = append(lines, "", "Likely cause:")
-	lines = append(lines, "  "+likelyCause(diff))
+	// Footer section.
+	footerLines := []string{
+		"",
+		"Likely cause:",
+		"  " + likelyCause(diff),
+	}
 
 	if len(gitFiles) > 0 {
-		lines = append(lines, "", paint(stdout, ui.ColorMuted, "Changed files since snapshot:"))
+		footerLines = append(footerLines, "", paint(stdout, ui.ColorMuted, "Changed files since snapshot:"))
 		for _, f := range gitFiles {
-			lines = append(lines, "  "+paint(stdout, ui.ColorMuted, f))
+			footerLines = append(footerLines, "  "+paint(stdout, ui.ColorMuted, f))
 		}
 	}
 
-	lines = append(lines,
+	footerLines = append(footerLines,
 		"",
 		"Next:",
 		"  "+paint(stdout, ui.ColorInfo, "rg check --verbose"),
 		"  "+paint(stdout, ui.ColorInfo, "git diff"),
 		"",
-		paint(stdout, ui.ColorFail, "Commit blocked."),
 	)
-	return writeLines(stdout, lines)
+	ui.StaggeredPrint(stdout, footerLines)
+
+	// Critical reveal for the final line.
+	ui.CriticalReveal(stdout, paint(stdout, ui.ColorFail, "Commit blocked."))
+	return nil
 }
 
 // writeHook renders compact Flow I output for git pre-commit hooks.
@@ -492,11 +605,8 @@ func truncate(s string, n int) string {
 }
 
 func writeLines(w io.Writer, lines []string) error {
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(w, line); err != nil {
-			return err
-		}
-	}
+	// E11-T6: staggered reveal for result lines on TTY.
+	ui.StaggeredPrint(w, lines)
 	return nil
 }
 
