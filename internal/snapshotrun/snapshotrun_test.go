@@ -167,7 +167,7 @@ func TestRun_humanOutput(t *testing.T) {
 	}
 
 	out := stdout.String()
-	checks := []string{"Snapshot", "Tests", "Routes", "Schemas", "Saved:", "rg check"}
+	checks := []string{"snapshot", "Tests", "Routes", "Schemas", "Saved:", "rg check"}
 	for _, want := range checks {
 		if !strings.Contains(out, want) {
 			t.Errorf("human output missing %q\nGot:\n%s", want, out)

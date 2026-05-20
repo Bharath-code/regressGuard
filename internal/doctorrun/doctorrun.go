@@ -1,5 +1,6 @@
 // Package doctorrun implements rg doctor.
 // It verifies config, snapshot, test command, and dev server reachability.
+// Uses huh/spinner for a premium diagnostic experience on TTY.
 package doctorrun
 
 import (
@@ -10,6 +11,9 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/huh/spinner"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
@@ -26,8 +30,29 @@ type Options struct {
 
 // Run executes all diagnostic checks and prints results.
 // Returns true if all checks pass, false if any fail.
+// On TTY, uses huh/spinner for a premium diagnostic experience.
 func Run(opts Options) bool {
 	opts = withDefaults(opts)
+
+	// Use huh/spinner on TTY for premium feel.
+	if ui.ColorEnabled(opts.Stdout) {
+		var allOK bool
+		_ = spinner.New().
+			Title(lipgloss.NewStyle().Foreground(lipgloss.Color("#0969DA")).Render("Running diagnostics...")).
+			Action(func() {
+				// Brief pause so the spinner is visible.
+				time.Sleep(400 * time.Millisecond)
+				allOK = runChecks(opts)
+			}).
+			Run()
+		return allOK
+	}
+
+	return runChecks(opts)
+}
+
+// runChecks performs the actual diagnostic checks.
+func runChecks(opts Options) bool {
 	allOK := true
 
 	// 1. Config check.

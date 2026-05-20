@@ -1,5 +1,6 @@
 // Package configrun implements rg config get and rg config set.
 // It supports dotted paths for nested fields (e.g. auth.testToken).
+// Uses huh for interactive value input when value is omitted on TTY.
 package configrun
 
 import (
@@ -8,6 +9,9 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/failures"
@@ -37,10 +41,38 @@ func Get(key string, root string, stdout io.Writer) error {
 }
 
 // Set writes a config value by key and saves the config file.
+// If value is empty and stdout is a TTY, prompts interactively using huh.
 func Set(key, value, root string, stdout io.Writer) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
+	}
+
+	// If value is empty and we're on a TTY, prompt with huh.
+	if value == "" && ui.IsTerminal(os.Stdin) && ui.ColorEnabled(stdout) {
+		currentVal, _ := getField(cfg, key)
+		var inputVal string
+		theme := configTheme()
+		err := huh.NewInput().
+			Title(fmt.Sprintf("Set %s", key)).
+			Placeholder(currentVal).
+			Value(&inputVal).
+			WithTheme(theme).
+			Run()
+		if err != nil {
+			return err
+		}
+		value = strings.TrimSpace(inputVal)
+		if value == "" {
+			return fmt.Errorf("no value provided")
+		}
+	} else if value == "" {
+		return failures.Actionable{
+			Title:       fmt.Sprintf("rg config set failed: no value provided for %q.", key),
+			Cause:       "The value argument is required in non-interactive mode.",
+			Next:        fmt.Sprintf("rg config set %s <value>", key),
+			MoreContext: "rg config set --help",
+		}
 	}
 
 	if !setField(&cfg, key, value) {
@@ -59,6 +91,17 @@ func Set(key, value, root string, stdout io.Writer) error {
 	_, _ = fmt.Fprintf(stdout, "%s Set %s = %s\n", ui.Paint(stdout, ui.ColorOK, "OK"), key, value)
 	_, _ = fmt.Fprintf(stdout, "   %s\n", ui.Paint(stdout, ui.ColorMuted, config.Path(root)))
 	return nil
+}
+
+// configTheme returns a huh theme for config prompts.
+func configTheme() *huh.Theme {
+	t := huh.ThemeCharm()
+	t.Focused.Title = t.Focused.Title.
+		Foreground(lipgloss.Color("#E6EDF3")).
+		Bold(true)
+	t.Focused.TextInput.Cursor = t.Focused.TextInput.Cursor.
+		Foreground(lipgloss.Color("#0969DA"))
+	return t
 }
 
 func loadConfig(root string) (config.Config, error) {

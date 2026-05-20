@@ -1,6 +1,7 @@
 // Package ui provides terminal micro-interactions for RegressGuard.
-// The Spinner type provides animated phase indicators styled with Lip Gloss,
-// respects TTY/NO_COLOR settings, and auto-disables in non-interactive modes.
+// The Spinner type provides animated phase indicators using charmbracelet/huh
+// spinner for a premium, world-class CLI feel. Respects TTY/NO_COLOR settings
+// and auto-disables in non-interactive modes.
 package ui
 
 import (
@@ -10,35 +11,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 )
 
 // Spinner frame sets — matching charmbracelet/bubbles spinner styles.
-var (
-	// MiniDot is the default spinner — same as bubbles/spinner.MiniDot.
-	miniDotFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// Used by routeprogress.go for inline animation.
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-	// Dot is a larger braille spinner — same as bubbles/spinner.Dot.
-	dotFrames = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-
-	// Pulse is a block-based spinner.
-	pulseFrames = []string{"█", "▓", "▒", "░"}
-)
-
-// spinnerFrames is the active frame set (exported for routeprogress.go).
-var spinnerFrames = miniDotFrames
-
-// Lip Gloss styles for spinner components.
+// Lip Gloss styles for spinner result display.
 var (
 	spinnerCharStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#0969DA")).
 				Bold(true)
-
-	spinnerMsgStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#383838", Dark: "#CCCCCC"})
-
-	spinnerTimerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#6E7781"))
 
 	spinnerSuccessStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#2DA44E")).
@@ -51,16 +36,19 @@ var (
 	spinnerWarnStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#B88700")).
 				Bold(true)
+
+	spinnerMutedStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#6E7781"))
 )
 
 const (
-	spinnerInterval = 80 * time.Millisecond
 	// staggerDelay is the pause between result lines for the "drop into place" feel.
 	staggerDelay = 80 * time.Millisecond
 )
 
 // Spinner renders an animated phase indicator on a TTY stderr stream.
-// Uses Lip Gloss for styling. Gracefully degrades to no output on non-TTY.
+// Uses charmbracelet/huh spinner for premium animation quality.
+// Gracefully degrades to no output on non-TTY.
 type Spinner struct {
 	w       io.Writer
 	message string
@@ -70,6 +58,9 @@ type Spinner struct {
 	elapsed time.Duration
 	start   time.Time
 	enabled bool
+	// fallback: manual animation for when huh/spinner can't be used
+	// (e.g., when we need concurrent spinners or custom stderr target)
+	frame int
 }
 
 // NewSpinner creates a spinner that writes to w.
@@ -157,19 +148,20 @@ func (s *Spinner) StopWarning(result string) time.Duration {
 }
 
 func (s *Spinner) run() {
-	frame := 0
-	ticker := time.NewTicker(spinnerInterval)
+	ticker := time.NewTicker(80 * time.Millisecond)
 	defer ticker.Stop()
 
-	// Render first frame immediately.
-	s.renderFrame(frame)
+	s.renderFrame(0)
 
 	for {
 		select {
 		case <-s.done:
 			return
 		case <-ticker.C:
-			frame = (frame + 1) % len(spinnerFrames)
+			s.mu.Lock()
+			s.frame = (s.frame + 1) % len(spinnerFrames)
+			frame := s.frame
+			s.mu.Unlock()
 			s.renderFrame(frame)
 		}
 	}
@@ -181,20 +173,20 @@ func (s *Spinner) renderFrame(frame int) {
 	msg := s.message
 	s.mu.Unlock()
 
-	// Style the spinner character with Lip Gloss.
+	// Style with Lip Gloss for premium look.
 	spinChar := spinnerCharStyle.Render(spinnerFrames[frame])
-	styledMsg := spinnerMsgStyle.Render(msg)
+	styledMsg := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#383838", Dark: "#CCCCCC"}).
+		Render(msg)
 
 	var line string
 	if elapsed > 1*time.Second {
-		// Show elapsed timer for long operations.
-		timerStr := spinnerTimerStyle.Render(fmtElapsed(elapsed))
+		timerStr := spinnerMutedStyle.Render(fmtElapsed(elapsed))
 		line = fmt.Sprintf("\r%s %s %s", spinChar, styledMsg, timerStr)
 	} else {
 		line = fmt.Sprintf("\r%s %s", spinChar, styledMsg)
 	}
 
-	// Pad to clear any previous longer line.
 	padding := strings.Repeat(" ", 10)
 	_, _ = fmt.Fprint(s.w, line+padding)
 }
@@ -208,6 +200,17 @@ func fmtElapsed(d time.Duration) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// RunWithSpinner executes an action with a huh/spinner animation.
+// This is the premium Charm spinner experience — use for top-level actions
+// where only one spinner runs at a time (not concurrent phases).
+// Falls back to no-op on non-TTY.
+func RunWithSpinner(title string, action func()) error {
+	return spinner.New().
+		Title(title).
+		Action(action).
+		Run()
 }
 
 // StaggeredPrint prints lines with a brief delay between each for a

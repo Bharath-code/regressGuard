@@ -1,7 +1,6 @@
 package initrun
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/failures"
@@ -67,13 +69,19 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
+	// Interactive mode: always show the guided huh experience.
 	prompted := false
-	if serverURL == "" {
-		if opts.Interactive {
-			if err := writeInteractiveDetection(opts, detected); err != nil {
-				return Result{}, err
-			}
-			answer, promptErr := prompt(opts, "Select dev server URL ["+DefaultServerURL+"]: ")
+	authMode := "public"
+
+	if opts.Interactive && (!opts.Yes || opts.ForceInteractive) {
+		// Show detection results with staggered reveal.
+		if err := writeInteractiveDetection(opts, detected, serverURL, reachable); err != nil {
+			return Result{}, err
+		}
+
+		// Show server URL selection when server not detected or forced interactive.
+		if serverURL == "" || opts.ForceInteractive {
+			answer, promptErr := promptServerURL(opts, serverURL)
 			if promptErr != nil {
 				return Result{}, promptErr
 			}
@@ -83,9 +91,15 @@ func Run(opts Options) (Result, error) {
 				serverURL = DefaultServerURL
 			}
 			reachable = serverReachable(opts.HTTPClient, serverURL)
-		} else {
-			return Result{}, failures.DevServerURLRequired()
 		}
+
+		// Show auth mode selection in interactive mode.
+		selectedAuth, authErr := promptAuthMode(opts)
+		if authErr == nil && selectedAuth != "" {
+			authMode = selectedAuth
+		}
+	} else if serverURL == "" && !opts.Interactive {
+		return Result{}, failures.DevServerURLRequired()
 	}
 
 	cfg := config.Config{
@@ -96,7 +110,7 @@ func Run(opts Options) (Result, error) {
 		TestCommand:    detected.TestCommand,
 		ServerURL:      serverURL,
 		Auth: config.Auth{
-			Mode:       "public",
+			Mode:       authMode,
 			HeaderName: "Authorization",
 			Prefix:     "Bearer",
 		},
@@ -108,11 +122,11 @@ func Run(opts Options) (Result, error) {
 		if !opts.Interactive {
 			return Result{}, failures.ConfigExists(config.Path(detected.Root))
 		}
-		answer, promptErr := prompt(opts, "Overwrite existing .regressguard/config.json? [y/N]: ")
-		if promptErr != nil {
-			return Result{}, promptErr
+		confirmed, confirmErr := promptOverwrite(opts)
+		if confirmErr != nil {
+			return Result{}, confirmErr
 		}
-		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+		if !confirmed {
 			return Result{}, failures.ConfigExists(config.Path(detected.Root))
 		}
 	}
@@ -137,6 +151,126 @@ func Run(opts Options) (Result, error) {
 		return result, writeJSON(opts.Stdout, result)
 	}
 	return result, writeHuman(opts, result, prompted)
+}
+
+// promptServerURL uses huh Select when on a real TTY, falls back to basic prompt.
+func promptServerURL(opts Options, currentURL string) (string, error) {
+	// Check if we can use huh (real TTY with os.File stdin).
+	if _, ok := opts.Stdin.(*os.File); ok && ui.IsTerminal(opts.Stdin) {
+		var serverURL string
+		defaultOpt := DefaultServerURL
+		if currentURL != "" {
+			defaultOpt = currentURL
+		}
+		err := huh.NewSelect[string]().
+			Title("Select dev server URL").
+			Options(
+				huh.NewOption(defaultOpt+" (detected)", defaultOpt),
+				huh.NewOption("http://localhost:5173", "http://localhost:5173"),
+				huh.NewOption("http://localhost:8080", "http://localhost:8080"),
+				huh.NewOption("Enter custom URL...", "custom"),
+			).
+			Value(&serverURL).
+			WithTheme(regressGuardTheme()).
+			Run()
+		if err != nil {
+			return "", err
+		}
+		if serverURL == "custom" {
+			var customURL string
+			err = huh.NewInput().
+				Title("Enter dev server URL").
+				Placeholder("http://localhost:3000").
+				Value(&customURL).
+				WithTheme(regressGuardTheme()).
+				Run()
+			if err != nil {
+				return "", err
+			}
+			return customURL, nil
+		}
+		return serverURL, nil
+	}
+
+	// Fallback: basic stdin prompt for piped/test input.
+	return prompt(opts, "Select dev server URL ["+DefaultServerURL+"]: ")
+}
+
+// promptAuthMode uses huh Select for auth configuration.
+func promptAuthMode(opts Options) (string, error) {
+	if _, ok := opts.Stdin.(*os.File); ok && ui.IsTerminal(opts.Stdin) {
+		var authMode string
+		err := huh.NewSelect[string]().
+			Title("Configure auth?").
+			Options(
+				huh.NewOption("Public routes only (no auth)", "public"),
+				huh.NewOption("Bearer token", "bearer"),
+				huh.NewOption("Cookie header", "cookie"),
+			).
+			Value(&authMode).
+			WithTheme(regressGuardTheme()).
+			Run()
+		if err != nil {
+			return "public", err
+		}
+		return authMode, nil
+	}
+	return "public", nil
+}
+
+// promptOverwrite uses huh Confirm for overwrite confirmation.
+func promptOverwrite(opts Options) (bool, error) {
+	if _, ok := opts.Stdin.(*os.File); ok && ui.IsTerminal(opts.Stdin) {
+		var confirmed bool
+		err := huh.NewConfirm().
+			Title("Overwrite existing config?").
+			Description(".regressguard/config.json already exists").
+			Affirmative("Yes, overwrite").
+			Negative("No, keep existing").
+			Value(&confirmed).
+			WithTheme(regressGuardTheme()).
+			Run()
+		if err != nil {
+			return false, err
+		}
+		return confirmed, nil
+	}
+
+	// Fallback: basic stdin prompt.
+	answer, err := prompt(opts, "Overwrite existing .regressguard/config.json? [y/N]: ")
+	if err != nil {
+		return false, err
+	}
+	return strings.ToLower(strings.TrimSpace(answer)) == "y", nil
+}
+
+// regressGuardTheme returns a custom huh theme matching the RegressGuard brand.
+func regressGuardTheme() *huh.Theme {
+	t := huh.ThemeCharm()
+
+	// Override with RegressGuard brand colors.
+	t.Focused.Title = t.Focused.Title.
+		Foreground(lipgloss.Color("#E6EDF3")).
+		Bold(true)
+
+	t.Focused.SelectSelector = t.Focused.SelectSelector.
+		Foreground(lipgloss.Color("#0969DA"))
+
+	t.Focused.SelectedOption = t.Focused.SelectedOption.
+		Foreground(lipgloss.Color("#2DA44E"))
+
+	t.Focused.Option = t.Focused.Option.
+		Foreground(lipgloss.Color("#8B949E"))
+
+	t.Focused.FocusedButton = t.Focused.FocusedButton.
+		Background(lipgloss.Color("#0969DA")).
+		Foreground(lipgloss.Color("#FFFFFF"))
+
+	t.Focused.BlurredButton = t.Focused.BlurredButton.
+		Background(lipgloss.Color("#30363D")).
+		Foreground(lipgloss.Color("#8B949E"))
+
+	return t
 }
 
 func withDefaults(opts Options) Options {
@@ -166,61 +300,59 @@ func writeHuman(opts Options, result Result, compact bool) error {
 	if compact {
 		lines := []string{
 			"",
-			ui.SymbolPass + " Wrote " + result.ConfigPath,
+			ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Wrote " + ui.Paint(out, ui.ColorMuted, result.ConfigPath),
 			"",
-			"Next:",
-			"  " + result.Next,
+			ui.Paint(out, ui.ColorBold, "Next:"),
+			"  " + ui.Paint(out, ui.ColorInfo, result.Next),
 		}
-		for _, line := range lines {
-			if _, err := fmt.Fprintln(out, line); err != nil {
-				return err
-			}
-		}
+		ui.StaggeredPrint(out, lines)
 		return nil
 	}
 	lines := []string{
-		"RegressGuard init",
+		ui.Paint(out, ui.ColorBold, "RegressGuard init"),
 		"",
-		ui.SymbolPass + " Found project root: " + result.ProjectRoot,
-		ui.SymbolPass + " Detected package manager: " + result.PackageManager,
-		ui.SymbolPass + " Detected framework: " + result.Framework,
-		ui.SymbolPass + " Detected test command: " + result.TestCommand,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Found project root: " + ui.Paint(out, ui.ColorMuted, result.ProjectRoot),
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected package manager: " + result.PackageManager,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected framework: " + result.Framework,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, result.TestCommand),
 	}
 	if result.ServerReachable {
-		lines = append(lines, ui.SymbolPass+" Dev server reachable: "+result.ServerURL)
+		lines = append(lines, ui.Paint(out, ui.ColorOK, ui.SymbolPass)+" Dev server reachable: "+ui.Paint(out, ui.ColorInfo, result.ServerURL))
 	} else {
-		lines = append(lines, ui.SymbolWarning+" Dev server not reachable: "+result.ServerURL)
+		lines = append(lines, ui.Paint(out, ui.ColorWarn, ui.SymbolWarning)+" Dev server not reachable: "+result.ServerURL)
 	}
 	lines = append(lines,
-		ui.SymbolPass+" Wrote "+result.ConfigPath,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass)+" Wrote "+ui.Paint(out, ui.ColorMuted, result.ConfigPath),
 		"",
-		"Next:",
-		"  "+result.Next,
+		ui.Paint(out, ui.ColorBold, "Next:"),
+		"  "+ui.Paint(out, ui.ColorInfo, result.Next),
 	)
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(out, line); err != nil {
-			return err
-		}
-	}
+	ui.StaggeredPrint(out, lines)
 	return nil
 }
 
-func writeInteractiveDetection(opts Options, detected scanner.Detection) error {
+func writeInteractiveDetection(opts Options, detected scanner.Detection, serverURL string, reachable bool) error {
+	out := opts.Stdout
 	lines := []string{
-		"RegressGuard init",
+		ui.Paint(out, ui.ColorBold, "RegressGuard init"),
 		"",
-		ui.SymbolPass + " Found project root: " + detected.Root,
-		ui.SymbolPass + " Detected package manager: " + detected.PackageManager,
-		ui.SymbolPass + " Detected framework: " + detected.Framework,
-		ui.SymbolPass + " Detected test command: " + detected.TestCommand,
-		ui.SymbolWarning + " Dev server not running at " + DefaultServerURL,
-		"",
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Found project root: " + ui.Paint(out, ui.ColorMuted, detected.Root),
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected package manager: " + detected.PackageManager,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected framework: " + detected.Framework,
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, detected.TestCommand),
 	}
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(opts.Stdout, line); err != nil {
-			return err
-		}
+	if serverURL != "" && reachable {
+		lines = append(lines, ui.Paint(out, ui.ColorOK, ui.SymbolPass)+" Dev server reachable: "+ui.Paint(out, ui.ColorInfo, serverURL))
+	} else if serverURL != "" {
+		lines = append(lines, ui.Paint(out, ui.ColorWarn, ui.SymbolWarning)+" Dev server not responding: "+serverURL)
+	} else {
+		lines = append(lines, ui.Paint(out, ui.ColorWarn, ui.SymbolWarning)+" Dev server not running at "+DefaultServerURL)
 	}
+	if len(detected.Routes) > 0 {
+		lines = append(lines, ui.Paint(out, ui.ColorOK, ui.SymbolPass)+fmt.Sprintf(" Discovered %d API routes", len(detected.Routes)))
+	}
+	lines = append(lines, "")
+	ui.StaggeredPrint(out, lines)
 	return nil
 }
 
@@ -234,12 +366,12 @@ func prompt(opts Options, label string) (string, error) {
 	if _, err := fmt.Fprint(opts.Stdout, label); err != nil {
 		return "", err
 	}
-	reader := bufio.NewReader(opts.Stdin)
-	text, err := reader.ReadString('\n')
+	buf := make([]byte, 1024)
+	n, err := opts.Stdin.Read(buf)
 	if err != nil && err != io.EOF {
 		return "", err
 	}
-	return strings.TrimSpace(text), nil
+	return strings.TrimSpace(string(buf[:n])), nil
 }
 
 func serverReachable(client *http.Client, rawURL string) bool {

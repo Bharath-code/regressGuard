@@ -273,60 +273,54 @@ func loadConfig(root string) (config.Config, error) {
 	return cfg, nil
 }
 
-// writeHuman renders the Flow D snapshot screen.
+// writeHuman renders the Flow D snapshot screen with premium components.
 func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, serverDown bool, testDuration time.Duration) error {
 	_ = stderr
 
 	lines := []string{
-		ui.Paint(stdout, ui.ColorBold, "Snapshot"),
+		ui.Header(stdout, "snapshot"),
+		ui.Separator(stdout),
 		"",
 	}
 
 	// Tests line.
-	testLine := fmt.Sprintf("%-10s %d passed, %d failed", "Tests", result.Tests.Passed, result.Tests.Failed)
+	testDetail := fmt.Sprintf("%d passed, %d failed", result.Tests.Passed, result.Tests.Failed)
 	if result.Tests.Skipped > 0 {
-		testLine += fmt.Sprintf(", %d skipped", result.Tests.Skipped)
+		testDetail += fmt.Sprintf(", %d skipped", result.Tests.Skipped)
 	}
-	testLine += fmt.Sprintf("   %s", fmtDuration(testDuration))
-	lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+testLine)
+	testDetail += fmt.Sprintf("   %s", fmtDuration(testDuration))
+	lines = append(lines, ui.ResultLine(stdout, "pass", "Tests", testDetail))
 
 	// Routes line — show warning if server was down.
 	if serverDown {
-		lines = append(lines, ui.Paint(stdout, ui.ColorWarn, ui.SymbolWarning)+" "+fmt.Sprintf("%-10s Dev server not responding — routes skipped", "Routes"))
+		lines = append(lines, ui.ResultLine(stdout, "warn", "Routes", "Dev server not responding — routes skipped"))
 	} else {
-		routeLine := fmt.Sprintf("%-10s %d captured", "Routes", captured)
+		routeDetail := fmt.Sprintf("%d captured", captured)
 		if skipped > 0 {
-			routeLine += fmt.Sprintf(", %d skipped", skipped)
+			routeDetail += fmt.Sprintf(", %d skipped", skipped)
 		}
-		lines = append(lines, ui.Paint(stdout, ui.ColorOK, ui.SymbolPass)+" "+routeLine)
+		lines = append(lines, ui.ResultLine(stdout, "pass", "Routes", routeDetail))
 	}
 
 	// Schemas line.
 	if serverDown {
-		lines = append(lines, fmt.Sprintf("%s %-10s 0 hashed", ui.Paint(stdout, ui.ColorWarn, ui.SymbolWarning), "Schemas"))
+		lines = append(lines, ui.ResultLine(stdout, "warn", "Schemas", "0 hashed"))
 	} else {
-		lines = append(lines, fmt.Sprintf("%s %-10s %d hashed", ui.Paint(stdout, ui.ColorOK, ui.SymbolPass), "Schemas", captured))
+		lines = append(lines, ui.ResultLine(stdout, "pass", "Schemas", fmt.Sprintf("%d hashed", captured)))
 	}
 
 	lines = append(lines,
 		"",
+		ui.Separator(stdout),
+		"",
 		"Saved:",
 		"  "+ui.Paint(stdout, ui.ColorMuted, result.SnapshotPath),
-		"",
-		"Next:",
 	)
 
 	if serverDown {
-		lines = append(lines,
-			"  Start your dev server, then re-snapshot routes:",
-			"  "+ui.Paint(stdout, ui.ColorInfo, "npm run dev"),
-			"  "+ui.Paint(stdout, ui.ColorInfo, "rg snapshot"),
-		)
+		lines = append(lines, ui.NextSection(stdout, "npm run dev", "rg snapshot")...)
 	} else {
-		lines = append(lines,
-			"  Ask your AI agent to make the code change, then run:",
-			"  "+ui.Paint(stdout, ui.ColorInfo, "rg check"),
-		)
+		lines = append(lines, ui.NextSection(stdout, "rg check")...)
 	}
 
 	// E11-T6: staggered reveal for result lines on TTY.

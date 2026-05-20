@@ -58,6 +58,7 @@ type CheckFinding struct {
 
 // Run executes the full check pipeline and returns a Result.
 func Run(opts Options) (Result, error) {
+	startTime := time.Now()
 	opts = withDefaults(opts)
 
 	if os.Getenv("RG_HOOK") == "1" {
@@ -237,7 +238,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime))
 }
 
 func loadConfig(root string) (config.Config, error) {
@@ -342,20 +343,20 @@ func paint(w io.Writer, color ui.Color, text string) string {
 }
 
 // writeHuman renders the appropriate Flow screen (E/F/G) to stdout.
-func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string) error {
+func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult, before, after snapshot.Snapshot, gitFiles []string, elapsed time.Duration) error {
 	_ = stderr
 	switch result.Status {
 	case "critical":
-		return writeHumanCritical(stdout, result, diff, gitFiles)
+		return writeHumanCritical(stdout, result, diff, gitFiles, elapsed)
 	case "warning":
-		return writeHumanWarning(stdout, result, diff)
+		return writeHumanWarning(stdout, result, diff, elapsed)
 	default:
-		return writeHumanPass(stdout, result, before, after)
+		return writeHumanPass(stdout, result, before, after, elapsed)
 	}
 }
 
 // writeHumanPass renders Flow E — clean check with styled banner and celebration.
-func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot) error {
+func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration) error {
 	isTTY := ui.ColorEnabled(stdout)
 
 	// Styled banner for the verdict.
@@ -367,14 +368,16 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 	}
 
 	lines := []string{
-		paint(stdout, ui.ColorBold, "Check"),
+		ui.Header(stdout, "check"),
+		ui.Separator(stdout),
 		"",
 		header,
 		"",
-		fmt.Sprintf("  Tests       %d passed, %d failed", after.Tests.Passed, after.Tests.Failed),
-		fmt.Sprintf("  Routes      %d unchanged", result.Summary.Passed),
-		"  Timing      within tolerance",
+		ui.ResultLine(stdout, "pass", "Tests", fmt.Sprintf("%d passed, %d failed", after.Tests.Passed, after.Tests.Failed)),
+		ui.ResultLine(stdout, "pass", "Routes", fmt.Sprintf("%d unchanged", result.Summary.Passed)),
+		ui.ResultLine(stdout, "pass", "Timing", "within tolerance"),
 		"",
+		ui.Separator(stdout),
 	}
 
 	// Write lines with stagger, then celebration.
@@ -382,11 +385,15 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 
 	// Success celebration on the final line.
 	ui.SuccessCelebration(stdout, paint(stdout, ui.ColorOK, "Safe to commit."))
+
+	// Footer with timing.
+	_, _ = fmt.Fprintln(stdout)
+	_, _ = fmt.Fprintln(stdout, ui.Footer(stdout, elapsed))
 	return nil
 }
 
 // writeHumanWarning renders Flow G — warning only with styled banner.
-func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) error {
+func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult, elapsed time.Duration) error {
 	isTTY := ui.ColorEnabled(stdout)
 	n := result.Summary.Warnings
 	noun := "change"
@@ -403,37 +410,38 @@ func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult) 
 	}
 
 	lines := []string{
-		paint(stdout, ui.ColorBold, "Check"),
+		ui.Header(stdout, "check"),
+		ui.Separator(stdout),
 		"",
 		header,
 		"",
-		paint(stdout, ui.ColorMuted, fmtTableHeader()),
+		ui.TableHeaderRow(stdout, fmtTableHeader()),
 	}
 	for i, r := range diff.Results {
 		if r.Severity == engine.SeverityWarning {
-			// Animated table row with stagger.
 			row := fmtWarningRow(r)
 			if isTTY {
 				lines = append(lines, row)
-				_ = i // rows will be staggered by StaggeredPrint
+				_ = i
 			} else {
 				lines = append(lines, row)
 			}
 		}
 	}
 
-	lines = append(lines,
-		"",
-		"Next:",
-		"  "+paint(stdout, ui.ColorInfo, "rg check --verbose"),
-		"",
-		paint(stdout, ui.ColorWarn, "Commit allowed."),
-	)
+	lines = append(lines, "")
+	lines = append(lines, ui.Separator(stdout))
+	lines = append(lines, ui.NextSection(stdout, "rg check --verbose")...)
+	lines = append(lines, "")
+	lines = append(lines, paint(stdout, ui.ColorWarn, "Commit allowed."))
+	lines = append(lines, "")
+	lines = append(lines, ui.Footer(stdout, elapsed))
+
 	return writeLines(stdout, lines)
 }
 
 // writeHumanCritical renders Flow F — critical regression with styled banner and animated diff.
-func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult, gitFiles []string) error {
+func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult, gitFiles []string, elapsed time.Duration) error {
 	isTTY := ui.ColorEnabled(stdout)
 	n := result.Summary.Critical
 	noun := "regression"
@@ -451,11 +459,12 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 
 	// Header section.
 	headerLines := []string{
-		paint(stdout, ui.ColorBold, "Check"),
+		ui.Header(stdout, "check"),
+		ui.Separator(stdout),
 		"",
 		header,
 		"",
-		paint(stdout, ui.ColorMuted, fmtCriticalTableHeader()),
+		ui.TableHeaderRow(stdout, fmtCriticalTableHeader()),
 	}
 	ui.StaggeredPrint(stdout, headerLines)
 
@@ -485,6 +494,8 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 	// Footer section.
 	footerLines := []string{
 		"",
+		ui.Separator(stdout),
+		"",
 		"Likely cause:",
 		"  " + likelyCause(diff),
 	}
@@ -496,17 +507,16 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 		}
 	}
 
-	footerLines = append(footerLines,
-		"",
-		"Next:",
-		"  "+paint(stdout, ui.ColorInfo, "rg check --verbose"),
-		"  "+paint(stdout, ui.ColorInfo, "git diff"),
-		"",
-	)
+	footerLines = append(footerLines, ui.NextSection(stdout, "rg check --verbose", "git diff")...)
+	footerLines = append(footerLines, "")
 	ui.StaggeredPrint(stdout, footerLines)
 
 	// Critical reveal for the final line.
 	ui.CriticalReveal(stdout, paint(stdout, ui.ColorFail, "Commit blocked."))
+
+	// Footer with timing.
+	_, _ = fmt.Fprintln(stdout)
+	_, _ = fmt.Fprintln(stdout, ui.Footer(stdout, elapsed))
 	return nil
 }
 

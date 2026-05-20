@@ -166,8 +166,8 @@ func TestRun_passScreen(t *testing.T) {
 	}
 
 	out := stdout.String()
-	if !strings.Contains(out, "Check") {
-		t.Errorf("pass screen missing 'Check'\nGot:\n%s", out)
+	if !strings.Contains(out, "check") {
+		t.Errorf("pass screen missing 'check'\nGot:\n%s", out)
 	}
 }
 
@@ -216,7 +216,7 @@ func TestRun_criticalScreen_statusChange(t *testing.T) {
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"Check", "X", "regressions detected", "Commit blocked"} {
+	for _, want := range []string{"check", "X", "regressions detected", "Commit blocked"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("critical screen missing %q\nGot:\n%s", want, out)
 		}
@@ -305,13 +305,13 @@ func TestRun_warningScreen_render(t *testing.T) {
 		PassedRoutes: 2,
 	}
 
-	err := writeHumanWarning(&stdout, result, diff)
+	err := writeHumanWarning(&stdout, result, diff, 500*time.Millisecond)
 	if err != nil {
 		t.Fatalf("writeHumanWarning error: %v", err)
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"Check", "!", "non-blocking", "Commit allowed"} {
+	for _, want := range []string{"check", "!", "non-blocking", "Commit allowed"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("warning screen missing %q\nGot:\n%s", want, out)
 		}
