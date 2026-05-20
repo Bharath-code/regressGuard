@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
+	"github.com/Bharath-code/regressguard/internal/state"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
@@ -249,7 +252,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T7: human output (Flow D).
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, serverDown, testResult.Duration)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, serverDown, testResult.Duration, opts.ProjectRoot)
 }
 
 // loadConfig reads .regressguard/config.json from the project root.
@@ -274,7 +277,7 @@ func loadConfig(root string) (config.Config, error) {
 }
 
 // writeHuman renders the Flow D snapshot screen with premium components.
-func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, serverDown bool, testDuration time.Duration) error {
+func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, serverDown bool, testDuration time.Duration, projectRoot string) error {
 	_ = stderr
 
 	lines := []string{
@@ -325,6 +328,12 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 
 	// E11-T6: staggered reveal for result lines on TTY.
 	ui.StaggeredPrint(stdout, lines)
+
+	// E12-T2: one-time hook nudge after first successful snapshot.
+	if !serverDown {
+		showHookNudge(stdout, projectRoot)
+	}
+
 	return nil
 }
 
@@ -352,4 +361,32 @@ func fmtDuration(d time.Duration) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// showHookNudge prints a one-time suggestion to install the git hook.
+// It only shows if: hook is not installed, nudge hasn't been shown before.
+func showHookNudge(w io.Writer, projectRoot string) {
+	// Check if hook is already installed.
+	hookPath := filepath.Join(projectRoot, ".git", "hooks", "pre-commit")
+	if data, err := os.ReadFile(hookPath); err == nil {
+		content := string(data)
+		if strings.Contains(content, "rg check") || strings.Contains(content, "regressguard") {
+			return // hook already installed, no nudge needed
+		}
+	}
+
+	// Check if nudge was already shown.
+	s := state.Load(projectRoot)
+	if s.HookNudgeShown {
+		return
+	}
+
+	// Show the nudge.
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, ui.Paint(w, ui.ColorMuted, "Protect every commit automatically:"))
+	_, _ = fmt.Fprintln(w, "  "+ui.Paint(w, ui.ColorInfo, "rg hook install"))
+
+	// Mark as shown.
+	s.HookNudgeShown = true
+	_ = state.Save(projectRoot, s)
 }
