@@ -21,6 +21,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/statusrun"
 	"github.com/Bharath-code/regressguard/internal/ui"
 	"github.com/Bharath-code/regressguard/internal/upgraderun"
+	"github.com/Bharath-code/regressguard/internal/watchrun"
 	"github.com/spf13/cobra"
 )
 
@@ -82,6 +83,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newSnapshotCommand(),
 		newCheckCommand(),
 		newExplainCommand(),
+		newWatchCommand(),
 		newStatusCommand(),
 		newHookCommand(),
 		newConfigCommand(),
@@ -245,6 +247,22 @@ func newExplainCommand() *cobra.Command {
 	}
 	cmd.SetHelpTemplate(commandHelpTemplate("rg explain \"GET /api/users\""))
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
+	return cmd
+}
+
+func newWatchCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "watch",
+		Short: "Watch files and auto-run check on changes",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return watchrun.Run(watchrun.Options{
+				ProjectRoot: ".",
+				Stdout:      cmd.OutOrStdout(),
+				Stderr:      cmd.ErrOrStderr(),
+			})
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg watch"))
 	return cmd
 }
 

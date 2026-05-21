@@ -1467,3 +1467,59 @@ Scope explicitly deferred from v1:
 Document prepared: May 2026
 
 **RegressGuard — Before you commit, know what broke.**
+
+---
+
+# **19\. Post-v1 Backlog**
+
+The following improvements are captured for implementation after v1 launch validation. They are organized by category and prioritized by user impact. None of these should be built until E8 (Launch Feedback) confirms demand.
+
+## **19.1 Feature Improvements**
+
+| ID | Feature | Description | Priority | Depends On |
+| :---- | :---- | :---- | :---- | :---- |
+| F1 | `rg watch` — continuous mode | Runs `rg check` automatically on file save, like `vitest --watch`. Zero-friction for developers who forget to run it manually. Could push notifications to the MCP server for agent awareness. | P2 | v1 validated |
+| F2 | Route body inference | Auto-infer POST/PUT request bodies from OpenAPI specs, test files, or request interceptors. Reduces the most common config friction ("why is my POST route skipped?"). | P1 | E13-T3 done |
+| F3 | Multi-method route discovery | Detect POST/PUT/DELETE exports from Next.js `route.ts` files. Express: detect `router.post`, `router.put`, etc. Currently only GET routes are auto-discovered. | P1 | E10-T5 done |
+| F4 | Snapshot diffing (`rg diff`) | Show what changed between two snapshots (not just snapshot vs live). Useful for: "what did the AI change across my last 3 sessions?" | P2 | v1 validated |
+| F5 | `.regressguard/ignore` file | Like `.gitignore` but for routes and fields. Pattern-based: `*/admin/*`, `*.internal`. Easier than editing config.json manually. | P2 | E6-T2 done |
+| F6 | Hono framework support | Detect Hono route patterns (`app.get`, `app.post`) via regex scan. Record framework as "hono" in config. | P1 | E10-T5 done |
+| F7 | Response header tracking | Optionally track specific response headers (e.g. `X-RateLimit-Remaining`, `Cache-Control`) and flag changes. Useful for detecting middleware regressions. | P2 | v1 validated |
+| F8 | `rg history` — regression log | Store check results over time in `.regressguard/history.json`. Show trends: "3 regressions this week, all in auth routes." | P2 | v2 dashboard |
+
+## **19.2 Workflow & Friction Reduction**
+
+| ID | Improvement | Description | Priority | Depends On |
+| :---- | :---- | :---- | :---- | :---- |
+| W1 | Zero-config first run | `rg` in a Next.js project auto-runs `init + snapshot` in one shot. "Just works" experience: install, run, protected. | P1 | E8 feedback |
+| W2 | Git hook auto-install on init | After `rg init`, default to installing the pre-commit hook (with opt-out). One less step to full protection. | P2 | E5 done |
+| W3 | Snapshot auto-refresh | When `rg check` finds the snapshot is >24h old AND all checks pass, auto-update the snapshot. Prevents stale snapshot warnings from becoming noise. | P2 | E10-T4 done |
+| W4 | IDE extension (VS Code / Kiro) | Status bar showing last check result. Inline gutter markers on regressed routes. One-click "Run check" button. | P2 | v1 validated |
+| W5 | `rg init` from existing tests | Parse vitest/jest test files to discover which routes are already tested. Pre-populate the route list from test assertions. | P2 | E2 done |
+| W6 | `rg snapshot --accept` | After an intentional change, update only the changed routes in the snapshot without re-running everything. Faster than full `rg snapshot`. | P1 | E10-T6 done |
+| W7 | npx wrapper | `npx regressguard check` for users who prefer not to install globally. Thin npm package that downloads and runs the Go binary. | P2 | E7 done |
+| W8 | Monorepo support | `rg init` detects workspace roots (pnpm workspaces, turborepo). Per-package configs with shared snapshot store. | P2 | v2 |
+
+## **19.3 Performance**
+
+| ID | Improvement | Description | Expected Impact | Priority |
+| :---- | :---- | :---- | :---- | :---- |
+| P1 | Incremental snapshot | Only re-hit routes whose source files changed (like `--since` but for snapshot). | Snapshot time: 10s -> 2s on large projects | P1 |
+| P2 | HTTP connection pooling | Reuse TCP connections across route hits instead of creating new per-route. | Route-hitting time: -30-50% on 20+ routes | P1 |
+| P3 | Parallel test + route execution | Run tests and routes concurrently (tests don't need the server, routes don't need tests). | Total check time: -50% | P1 |
+| P4 | Binary size optimization | Use build tags to make MCP/Bubble Tea optional. Split into `rg` (core, <8MB) and `rg-full` (all features). | Binary: 20MB -> 8MB for core | P2 |
+| P5 | Route result caching | Cache route results for 5s to avoid redundant hits when running `rg check` immediately after `rg snapshot`. | Eliminates double-hit on fast workflows | P2 |
+| P6 | Lazy config loading | Only parse config fields that are needed for the current command. | Startup time: -10ms (marginal) | P3 |
+
+## **19.4 Security**
+
+| ID | Improvement | Description | Priority | Depends On |
+| :---- | :---- | :---- | :---- | :---- |
+| S1 | Token rotation warning | `rg doctor` warns when the token in `.regressguard/.env` is older than 30 days. Suggests rotation. | P2 | E13-T2 done |
+| S2 | Snapshot sanitization | Add `redactFields` config option that strips sensitive field names from the snapshot (not just values). Prevents accidental exposure of internal field names in committed snapshots. | P2 | E6-T1 done |
+| S3 | Config file permissions | `.regressguard/.env` should be created with 0600 (user-only read). `rg doctor` warns about world-readable secret files. | P1 | E13-T2 done |
+| S4 | MCP server directory restriction | `rg mcp serve --project-root <dir>` restricts all operations to a specific directory. Prevents a compromised agent from running checks in unrelated directories. | P2 | E13-T5 done |
+| S5 | GPG signature verification | `rg upgrade` verifies GPG signatures on release binaries in addition to SHA-256 checksums. Protects against supply-chain attacks. | P2 | E13-T7 done |
+| S6 | Audit log for MCP calls | Log all MCP tool invocations to `.regressguard/mcp-audit.log` with timestamp, tool name, and caller info. Useful for debugging agent behavior. | P3 | E13-T5 done |
+| S7 | Snapshot integrity check | Add HMAC to snapshot.json that detects manual tampering. `rg check` warns if snapshot was modified outside of `rg snapshot`. | P3 | v1 validated |
+
