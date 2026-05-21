@@ -14,6 +14,7 @@ The PRD is the product, UX, architecture, and delivery tracker. Section 11 is th
 4. Verify acceptance criteria.
 5. Record evidence in the PRD or implementation notes.
 6. Move status to `DONE` only when the Definition of Done is satisfied.
+7. after we features done , create .md document what we have learned why this feature is need . how its used and how it solves problem. this can be used for future reference how product works.
 
 ## Tech Stack & Dependencies
 

@@ -16,6 +16,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/initrun"
+	"github.com/Bharath-code/regressguard/internal/mcprun"
 	"github.com/Bharath-code/regressguard/internal/snapshotrun"
 	"github.com/Bharath-code/regressguard/internal/statusrun"
 	"github.com/Bharath-code/regressguard/internal/ui"
@@ -87,6 +88,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newDoctorCommand(),
 		newVersionCommand(build),
 		newUpgradeCommand(build),
+		newMCPCommand(build),
 	)
 	configureCompletionHelp(root)
 
@@ -413,6 +415,34 @@ func newUpgradeCommand(build BuildInfo) *cobra.Command {
 	}
 	cmd.SetHelpTemplate(commandHelpTemplate("rg upgrade"))
 	cmd.Flags().Bool("check", false, "check for updates without installing")
+	return cmd
+}
+
+func newMCPCommand(build BuildInfo) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "MCP server for AI coding agents",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.SetHelpTemplate(groupHelpTemplate("rg mcp serve"))
+	cmd.AddCommand(newMCPServeCommand(build))
+	return cmd
+}
+
+func newMCPServeCommand(build BuildInfo) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Start MCP server on stdio (for AI agents)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return mcprun.Serve(mcprun.Options{
+				Version:     build.Version,
+				ProjectRoot: ".",
+			})
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg mcp serve"))
 	return cmd
 }
 
