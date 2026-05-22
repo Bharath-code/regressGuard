@@ -16,6 +16,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
 	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/history"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 	"github.com/Bharath-code/regressguard/internal/state"
 	"github.com/Bharath-code/regressguard/internal/ui"
@@ -214,6 +215,17 @@ func Run(opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("save snapshot: %w", err)
 	}
 
+	// F4: archive snapshot to history for rg diff.
+	if err := history.Archive(opts.ProjectRoot, snap); err != nil {
+		fmt.Fprintf(opts.Stderr, "%s Snapshot history archive failed: %v\n",
+			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
+	}
+	if idx, loadErr := history.LoadIndex(opts.ProjectRoot); loadErr == nil {
+		maxHist := getMaxHistory(cfg)
+		history.Prune(opts.ProjectRoot, &idx, maxHist)
+		_ = history.SaveIndex(opts.ProjectRoot, idx)
+	}
+
 	// Build result.
 	outcomes := make([]RouteOutcome, 0, len(routeResults))
 	for _, rr := range routeResults {
@@ -361,6 +373,15 @@ func fmtDuration(d time.Duration) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// getMaxHistory returns the configured max history retention limit.
+// If cfg.MaxHistory is between 1 and 100 inclusive, it is used; otherwise the default of 20 is returned.
+func getMaxHistory(cfg config.Config) int {
+	if cfg.MaxHistory >= 1 && cfg.MaxHistory <= 100 {
+		return cfg.MaxHistory
+	}
+	return history.DefaultMax
 }
 
 // showHookNudge prints a one-time suggestion to install the git hook.

@@ -26,6 +26,7 @@ type Config struct {
 	Auth           Auth     `json:"auth"`
 	IgnoreFields   []string `json:"ignoreFields"`
 	Routes         []Route  `json:"routes"`
+	MaxHistory     int      `json:"maxHistory,omitempty"`
 }
 
 type Auth struct {

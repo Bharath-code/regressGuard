@@ -427,3 +427,121 @@ func TestRun_serverDown_completesQuickly(t *testing.T) {
 		t.Errorf("expected completion in <2s, took %v", elapsed)
 	}
 }
+
+// TestSnapshotRun_archivesOnSuccess verifies that after a successful snapshot,
+// the snapshot is archived to .regressguard/history/ and the index is updated.
+func TestSnapshotRun_archivesOnSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		ProjectRoot: dir,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes: []config.Route{
+			{Method: "GET", Path: "/api/health"},
+		},
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+		Stderr:      &stderr,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "saved" {
+		t.Errorf("expected status 'saved', got %q", result.Status)
+	}
+
+	// Verify history directory was created.
+	histDir := filepath.Join(dir, ".regressguard", "history")
+	info, err := os.Stat(histDir)
+	if err != nil {
+		t.Fatalf("history directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("expected history to be a directory")
+	}
+
+	// Verify index.json exists and has one entry.
+	indexPath := filepath.Join(histDir, "index.json")
+	indexData, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("index.json not created: %v", err)
+	}
+
+	var idx struct {
+		Entries []struct {
+			File      string `json:"file"`
+			GitCommit string `json:"gitCommit"`
+		} `json:"entries"`
+	}
+	if err := json.Unmarshal(indexData, &idx); err != nil {
+		t.Fatalf("index.json is not valid JSON: %v", err)
+	}
+	if len(idx.Entries) != 1 {
+		t.Fatalf("expected 1 index entry, got %d", len(idx.Entries))
+	}
+
+	// Verify the archived file exists.
+	archivePath := filepath.Join(histDir, idx.Entries[0].File)
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Fatalf("archived snapshot file not found: %v", err)
+	}
+
+	// Verify the archived file is a valid snapshot.
+	archiveData, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("read archive file: %v", err)
+	}
+	var archivedSnap snapshot.Snapshot
+	if err := json.Unmarshal(archiveData, &archivedSnap); err != nil {
+		t.Fatalf("archived file is not valid snapshot JSON: %v", err)
+	}
+	if archivedSnap.Tests.Passed != 3 {
+		t.Errorf("expected 3 passed tests in archive, got %d", archivedSnap.Tests.Passed)
+	}
+
+	// Verify no warning was emitted to stderr about archival failure.
+	if strings.Contains(stderr.String(), "archive failed") {
+		t.Errorf("unexpected archive failure warning in stderr: %s", stderr.String())
+	}
+}
+
+// TestGetMaxHistory verifies the getMaxHistory helper returns correct values.
+func TestGetMaxHistory(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      config.Config
+		expected int
+	}{
+		{"zero uses default", config.Config{MaxHistory: 0}, 20},
+		{"negative uses default", config.Config{MaxHistory: -1}, 20},
+		{"above 100 uses default", config.Config{MaxHistory: 101}, 20},
+		{"min valid", config.Config{MaxHistory: 1}, 1},
+		{"max valid", config.Config{MaxHistory: 100}, 100},
+		{"mid range", config.Config{MaxHistory: 50}, 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getMaxHistory(tt.cfg)
+			if got != tt.expected {
+				t.Errorf("getMaxHistory(%d) = %d, want %d", tt.cfg.MaxHistory, got, tt.expected)
+			}
+		})
+	}
+}
