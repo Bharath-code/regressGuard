@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -25,6 +26,7 @@ type Config struct {
 	ServerCommand  string   `json:"serverCommand,omitempty"`
 	Auth           Auth     `json:"auth"`
 	IgnoreFields   []string `json:"ignoreFields"`
+	RedactFields   []string `json:"redactFields,omitempty"`
 	Routes         []Route  `json:"routes"`
 	MaxHistory     int      `json:"maxHistory,omitempty"`
 }
@@ -171,6 +173,43 @@ func LooksLikeSecret(token string) bool {
 	}
 	// JWT-like tokens, long hex strings, or anything over 20 chars.
 	return len(token) > 20 || strings.Contains(token, "eyJ")
+}
+
+// WriteEnvFile creates or overwrites .regressguard/.env with 0600 permissions.
+// This ensures secrets are only readable by the file owner.
+func WriteEnvFile(root string, content string) error {
+	dir := filepath.Join(root, DirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(EnvPath(root), []byte(content), 0o600)
+}
+
+// EnvFilePermissionsOK checks if .regressguard/.env has safe permissions (0600 or 0400).
+// Returns true if the file doesn't exist (nothing to protect).
+// Returns false if the file is world-readable or group-readable.
+func EnvFilePermissionsOK(root string) (ok bool, mode os.FileMode) {
+	info, err := os.Stat(EnvPath(root))
+	if err != nil {
+		return true, 0 // file doesn't exist — nothing to warn about
+	}
+	perm := info.Mode().Perm()
+	// Safe: only owner can read (0600, 0400, 0640 is borderline but we allow owner+group read).
+	// Unsafe: world-readable (others have any permission).
+	if perm&0o007 != 0 {
+		return false, perm
+	}
+	return true, perm
+}
+
+// EnvFileAge returns the modification time of .regressguard/.env.
+// Returns zero time if the file doesn't exist.
+func EnvFileAge(root string) (modTime time.Time, exists bool) {
+	info, err := os.Stat(EnvPath(root))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return info.ModTime(), true
 }
 
 // loadIgnoreFile reads .regressguard/ignore and returns field ignore rules

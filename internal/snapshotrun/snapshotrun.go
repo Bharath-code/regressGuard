@@ -218,7 +218,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T6: save snapshot.
-	if err := snapshot.Write(opts.ProjectRoot, snap); err != nil {
+	if err := snapshot.Write(opts.ProjectRoot, snap, cfg.RedactFields); err != nil {
 		return Result{}, fmt.Errorf("save snapshot: %w", err)
 	}
 

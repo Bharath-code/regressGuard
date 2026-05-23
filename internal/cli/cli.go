@@ -520,13 +520,18 @@ func newMCPServeCommand(build BuildInfo) *cobra.Command {
 		Use:   "serve",
 		Short: "Start MCP server on stdio (for AI agents)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, _ := cmd.Flags().GetString("project-root")
+			if projectRoot == "" {
+				projectRoot = "."
+			}
 			return mcprun.Serve(mcprun.Options{
 				Version:     build.Version,
-				ProjectRoot: ".",
+				ProjectRoot: projectRoot,
 			})
 		},
 	}
 	cmd.SetHelpTemplate(commandHelpTemplate("rg mcp serve"))
+	cmd.Flags().String("project-root", ".", "restrict operations to this directory")
 	return cmd
 }
 

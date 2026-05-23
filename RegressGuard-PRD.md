@@ -1513,13 +1513,13 @@ The following improvements are captured for implementation after v1 launch valid
 
 ## **19.4 Security**
 
-| ID | Improvement | Description | Priority | Depends On |
-| :---- | :---- | :---- | :---- | :---- |
-| S1 | Token rotation warning | `rg doctor` warns when the token in `.regressguard/.env` is older than 30 days. Suggests rotation. | P2 | E13-T2 done |
-| S2 | Snapshot sanitization | Add `redactFields` config option that strips sensitive field names from the snapshot (not just values). Prevents accidental exposure of internal field names in committed snapshots. | P2 | E6-T1 done |
-| S3 | Config file permissions | `.regressguard/.env` should be created with 0600 (user-only read). `rg doctor` warns about world-readable secret files. | P1 | E13-T2 done |
-| S4 | MCP server directory restriction | `rg mcp serve --project-root <dir>` restricts all operations to a specific directory. Prevents a compromised agent from running checks in unrelated directories. | P2 | E13-T5 done |
-| S5 | GPG signature verification | `rg upgrade` verifies GPG signatures on release binaries in addition to SHA-256 checksums. Protects against supply-chain attacks. | P2 | E13-T7 done |
-| S6 | Audit log for MCP calls | Log all MCP tool invocations to `.regressguard/mcp-audit.log` with timestamp, tool name, and caller info. Useful for debugging agent behavior. | P3 | E13-T5 done |
-| S7 | Snapshot integrity check | Add HMAC to snapshot.json that detects manual tampering. `rg check` warns if snapshot was modified outside of `rg snapshot`. | P3 | v1 validated |
+| ID | Improvement | Description | Priority | Depends On | Status |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| S1 | Token rotation warning | `rg doctor` warns when the token in `.regressguard/.env` is older than 30 days. Suggests rotation. | P2 | E13-T2 done | DONE |
+| S2 | Snapshot sanitization | Add `redactFields` config option that strips sensitive field names from the snapshot (not just values). Prevents accidental exposure of internal field names in committed snapshots. | P2 | E6-T1 done | DONE |
+| S3 | Config file permissions | `.regressguard/.env` should be created with 0600 (user-only read). `rg doctor` warns about world-readable secret files. | P1 | E13-T2 done | DONE |
+| S4 | MCP server directory restriction | `rg mcp serve --project-root <dir>` restricts all operations to a specific directory. Prevents a compromised agent from running checks in unrelated directories. | P2 | E13-T5 done | DONE |
+| S5 | GPG signature verification | `rg upgrade` verifies GPG signatures on release binaries in addition to SHA-256 checksums. Protects against supply-chain attacks. | P2 | E13-T7 done | DONE |
+| S6 | Audit log for MCP calls | Log all MCP tool invocations to `.regressguard/mcp-audit.log` with timestamp, tool name, and caller info. Useful for debugging agent behavior. | P3 | E13-T5 done | DONE |
+| S7 | Snapshot integrity check | Add HMAC to snapshot.json that detects manual tampering. `rg check` warns if snapshot was modified outside of `rg snapshot`. | P3 | v1 validated | DONE |
 

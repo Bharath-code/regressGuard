@@ -102,6 +102,23 @@ func runChecks(opts Options) bool {
 				_, _ = fmt.Fprintf(opts.Stdout, "  Tip: rg config set auth.testToken \"$RG_TEST_TOKEN\"\n")
 				_, _ = fmt.Fprintf(opts.Stdout, "  Then: echo 'RG_TEST_TOKEN=your-token' >> .regressguard/.env\n")
 			}
+
+			// S3: .env file permissions check.
+			if ok, mode := config.EnvFilePermissionsOK(opts.ProjectRoot); !ok {
+				printWarn(opts.Stdout, "Env file", fmt.Sprintf(".regressguard/.env has unsafe permissions %04o — should be 0600", mode))
+				_, _ = fmt.Fprintf(opts.Stdout, "  Fix: chmod 600 .regressguard/.env\n")
+				allOK = false
+			}
+
+			// S1: token rotation warning — warn if .env is older than 30 days.
+			if modTime, exists := config.EnvFileAge(opts.ProjectRoot); exists {
+				age := time.Since(modTime)
+				if age > 30*24*time.Hour {
+					days := int(age.Hours() / 24)
+					printWarn(opts.Stdout, "Token age", fmt.Sprintf(".regressguard/.env is %d days old — consider rotating secrets", days))
+					_, _ = fmt.Fprintf(opts.Stdout, "  Tip: Update your token and run: touch .regressguard/.env\n")
+				}
+			}
 		}
 	} else {
 		printFail(opts.Stdout, "Config", "not found")

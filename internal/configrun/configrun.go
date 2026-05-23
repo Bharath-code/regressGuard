@@ -143,6 +143,12 @@ func getField(cfg config.Config, key string) (string, bool) {
 		}
 		b, _ := json.Marshal(cfg.IgnoreFields)
 		return string(b), true
+	case "redactfields":
+		if len(cfg.RedactFields) == 0 {
+			return "[]", true
+		}
+		b, _ := json.Marshal(cfg.RedactFields)
+		return string(b), true
 	default:
 		return "", false
 	}
@@ -181,6 +187,19 @@ func setField(cfg *config.Config, key, value string) bool {
 			}
 		} else {
 			cfg.IgnoreFields = splitCSV(value)
+		}
+	case "redactfields":
+		// Accept JSON array or comma-separated list.
+		value = strings.TrimSpace(value)
+		if strings.HasPrefix(value, "[") {
+			var fields []string
+			if err := json.Unmarshal([]byte(value), &fields); err == nil {
+				cfg.RedactFields = fields
+			} else {
+				cfg.RedactFields = splitCSV(value)
+			}
+		} else {
+			cfg.RedactFields = splitCSV(value)
 		}
 	default:
 		return false

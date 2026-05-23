@@ -65,11 +65,19 @@ func Exists(root string) bool {
 }
 
 // Write serializes and saves the snapshot to disk.
-func Write(root string, snap Snapshot) error {
+// If redactFields is non-empty, those field names are stripped from
+// NormalizedSchema before persisting (S2: snapshot sanitization).
+func Write(root string, snap Snapshot, redactFields ...[]string) error {
 	dir := filepath.Join(root, DirName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create snapshot dir: %w", err)
 	}
+
+	// S2: apply redaction to NormalizedSchema if redactFields provided.
+	if len(redactFields) > 0 && len(redactFields[0]) > 0 {
+		snap = redactSnapshot(snap, redactFields[0])
+	}
+
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
@@ -78,7 +86,61 @@ func Write(root string, snap Snapshot) error {
 	if err := os.WriteFile(Path(root), data, 0o644); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
+
+	// S7: write HMAC for integrity verification.
+	if err := WriteHMAC(root); err != nil {
+		// Non-fatal — integrity is a bonus, not a requirement.
+		_ = err
+	}
+
 	return nil
+}
+
+// redactSnapshot returns a copy of the snapshot with specified field names
+// removed from all NormalizedSchema entries. This prevents accidental exposure
+// of internal field names in committed snapshots.
+func redactSnapshot(snap Snapshot, fields []string) Snapshot {
+	if len(fields) == 0 {
+		return snap
+	}
+	fieldSet := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		fieldSet[f] = true
+	}
+
+	// Deep copy routes map.
+	newRoutes := make(map[string]RouteRecord, len(snap.Routes))
+	for key, record := range snap.Routes {
+		if len(record.NormalizedSchema) > 0 {
+			record.NormalizedSchema = redactJSON(record.NormalizedSchema, fieldSet)
+		}
+		newRoutes[key] = record
+	}
+	snap.Routes = newRoutes
+	return snap
+}
+
+// redactJSON removes specified keys from a JSON object (top-level and nested).
+func redactJSON(data json.RawMessage, fields map[string]bool) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return data // not an object, return as-is
+	}
+
+	for key := range fields {
+		delete(obj, key)
+	}
+
+	// Recurse into nested objects.
+	for key, val := range obj {
+		obj[key] = redactJSON(val, fields)
+	}
+
+	result, err := json.Marshal(obj)
+	if err != nil {
+		return data
+	}
+	return result
 }
 
 // Load reads and parses the snapshot from disk.

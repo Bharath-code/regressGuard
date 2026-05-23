@@ -81,6 +81,13 @@ func Run(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
+	// S7: snapshot integrity check — warn if snapshot was modified outside rg snapshot.
+	if valid, hmacErr := snapshot.VerifyHMAC(opts.ProjectRoot); hmacErr == nil && !valid {
+		msg := fmt.Sprintf("%s Snapshot integrity warning: snapshot.json may have been modified outside of rg snapshot.", ui.SymbolWarning)
+		_, _ = fmt.Fprintln(opts.Stderr, msg)
+		_, _ = fmt.Fprintln(opts.Stderr, "  Run: rg snapshot")
+	}
+
 	// E10-T4: snapshot age warning (non-blocking, stderr only).
 	if age := time.Since(snap.CreatedAt); age > 24*time.Hour {
 		msg := fmt.Sprintf("%s Snapshot is %s old. Consider running rg snapshot for a fresh baseline.", ui.SymbolWarning, formatAge(age))
