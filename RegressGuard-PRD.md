@@ -1489,16 +1489,16 @@ The following improvements are captured for implementation after v1 launch valid
 
 ## **19.2 Workflow & Friction Reduction**
 
-| ID | Improvement | Description | Priority | Depends On |
-| :---- | :---- | :---- | :---- | :---- |
-| W1 | Zero-config first run | `rg` in a Next.js project auto-runs `init + snapshot` in one shot. "Just works" experience: install, run, protected. | P1 | E8 feedback |
-| W2 | Git hook auto-install on init | After `rg init`, default to installing the pre-commit hook (with opt-out). One less step to full protection. | P2 | E5 done |
-| W3 | Snapshot auto-refresh | When `rg check` finds the snapshot is >24h old AND all checks pass, auto-update the snapshot. Prevents stale snapshot warnings from becoming noise. | P2 | E10-T4 done |
-| W4 | IDE extension (VS Code / Kiro) | Status bar showing last check result. Inline gutter markers on regressed routes. One-click "Run check" button. | P2 | v1 validated |
-| W5 | `rg init` from existing tests | Parse vitest/jest test files to discover which routes are already tested. Pre-populate the route list from test assertions. | P2 | E2 done |
-| W6 | `rg snapshot --accept` | After an intentional change, update only the changed routes in the snapshot without re-running everything. Faster than full `rg snapshot`. | P1 | E10-T6 done |
-| W7 | npx wrapper | `npx regressguard check` for users who prefer not to install globally. Thin npm package that downloads and runs the Go binary. | P2 | E7 done |
-| W8 | Monorepo support | `rg init` detects workspace roots (pnpm workspaces, turborepo). Per-package configs with shared snapshot store. | P2 | v2 |
+| ID | Improvement | Description | Priority | Depends On | Status |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| W1 | Zero-config first run | `rg quickstart` auto-runs `init + snapshot` in one shot. "Just works" experience: install, run, protected. | P1 | E8 feedback | DONE |
+| W2 | Git hook auto-install on init | After `rg init`, prompts to install the pre-commit hook (interactive mode). One less step to full protection. | P2 | E5 done | DONE |
+| W3 | Snapshot auto-refresh | When `rg check` finds the snapshot is >24h old AND all checks pass, auto-update the snapshot. Prevents stale snapshot warnings from becoming noise. | P2 | E10-T4 done | DONE |
+| W4 | IDE extension (VS Code / Kiro) | Status bar showing last check result. Inline gutter markers on regressed routes. One-click "Run check" button. | P2 | v1 validated | NOT STARTED |
+| W5 | `rg init` from existing tests | Parse vitest/jest test files to discover which routes are already tested. Pre-populate the route list from test assertions. | P2 | E2 done | DONE |
+| W6 | `rg snapshot --accept` | After an intentional change, update only the changed routes in the snapshot without re-running everything. Faster than full `rg snapshot`. | P1 | E10-T6 done | DONE |
+| W7 | npx wrapper | `npx regressguard check` for users who prefer not to install globally. Thin npm package that downloads and runs the Go binary. | P2 | E7 done | NOT STARTED |
+| W8 | Monorepo support | `rg init` detects workspace roots (pnpm workspaces, turborepo). Per-package configs with shared snapshot store. | P2 | v2 | NOT STARTED |
 
 ## **19.3 Performance**
 

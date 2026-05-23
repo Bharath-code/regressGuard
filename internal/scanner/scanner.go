@@ -46,6 +46,22 @@ func Detect(start string, testOverride string) (Detection, error) {
 		routes, _ = DiscoverExpressRoutes(root)
 	}
 
+	// W5: supplement with routes discovered from test files.
+	testRoutes := DiscoverRoutesFromTests(root)
+	if len(testRoutes) > 0 {
+		seen := map[string]bool{}
+		for _, r := range routes {
+			seen[r.Method+" "+r.Path] = true
+		}
+		for _, r := range testRoutes {
+			key := r.Method + " " + r.Path
+			if !seen[key] {
+				seen[key] = true
+				routes = append(routes, r)
+			}
+		}
+	}
+
 	testCommand := strings.TrimSpace(testOverride)
 	if testCommand == "" {
 		testCommand = DetectTestCommand(pm, pkg)
@@ -309,4 +325,98 @@ func isPlaceholderTest(script string) bool {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// W5: DiscoverRoutesFromTests parses test files (vitest/jest) to find route
+// assertions like fetch("/api/users") or request(app).get("/api/health").
+// This supplements static route discovery when test files reference routes
+// that aren't discoverable from source alone.
+func DiscoverRoutesFromTests(root string) []Route {
+	var routes []Route
+	seen := map[string]bool{}
+
+	// Common test file locations.
+	testDirs := []string{root}
+	for _, sub := range []string{"tests", "test", "__tests__", "src", "spec"} {
+		dir := filepath.Join(root, sub)
+		if exists(dir) {
+			testDirs = append(testDirs, dir)
+		}
+	}
+
+	for _, dir := range testDirs {
+		_ = filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+			if err != nil || entry.IsDir() {
+				if entry != nil && entry.IsDir() {
+					name := entry.Name()
+					if name == "node_modules" || name == ".next" || name == "dist" || name == ".git" {
+						return filepath.SkipDir
+					}
+				}
+				return err
+			}
+			// Only look at test files.
+			if !isTestFile(path) {
+				return nil
+			}
+			body, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+			content := string(body)
+
+			// Match patterns like:
+			//   fetch("/api/users")
+			//   fetch(`/api/users`)
+			//   request(app).get("/api/health")
+			//   .get("/api/health")
+			//   .post("/api/login")
+			for _, match := range testRoutePattern.FindAllStringSubmatch(content, -1) {
+				method := strings.ToUpper(match[1])
+				routePath := match[2]
+				if method == "" || method == "FETCH" {
+					method = "GET"
+				}
+				key := method + " " + routePath
+				if !seen[key] && strings.HasPrefix(routePath, "/api") {
+					seen[key] = true
+					routes = append(routes, Route{Method: method, Path: routePath})
+				}
+			}
+			return nil
+		})
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].Path == routes[j].Path {
+			return routes[i].Method < routes[j].Method
+		}
+		return routes[i].Path < routes[j].Path
+	})
+	return routes
+}
+
+// testRoutePattern matches common test patterns for API route assertions.
+// Captures: (method, path)
+// Examples:
+//   .get("/api/users")  → GET, /api/users
+//   .post('/api/login') → POST, /api/login
+//   fetch("/api/health") → (empty), /api/health
+//   fetch(`${baseUrl}/api/users`) → skipped (dynamic)
+var testRoutePattern = regexp.MustCompile(
+	`(?:\.|\b)(get|post|put|patch|delete|fetch)\s*\(\s*["'` + "`" + `](/api[^"'` + "`" + `\$]*)["'` + "`" + `]`,
+)
+
+// isTestFile returns true if the file looks like a test file.
+func isTestFile(path string) bool {
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	if ext != ".ts" && ext != ".js" && ext != ".tsx" && ext != ".jsx" && ext != ".mts" && ext != ".mjs" {
+		return false
+	}
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+	return strings.HasSuffix(nameWithoutExt, ".test") ||
+		strings.HasSuffix(nameWithoutExt, ".spec") ||
+		strings.HasSuffix(nameWithoutExt, "_test") ||
+		strings.HasSuffix(nameWithoutExt, "_spec")
 }

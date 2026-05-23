@@ -397,6 +397,12 @@ func Run(opts Options) (Result, error) {
 	// E12-T4: update check streak in state.
 	streak := updateStreak(opts.ProjectRoot, result.Status)
 
+	// W3: snapshot auto-refresh — when check passes and snapshot is stale (>24h),
+	// silently update the snapshot so the user doesn't get repeated stale warnings.
+	if result.Status == "pass" && time.Since(snap.CreatedAt) > 24*time.Hour {
+		autoRefreshSnapshot(opts, afterSnap)
+	}
+
 	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime), streak, opts.ProjectRoot)
 }
 
@@ -909,4 +915,27 @@ func withDefaults(opts Options) Options {
 		opts.Stderr = os.Stderr
 	}
 	return opts
+}
+
+// autoRefreshSnapshot silently updates the snapshot when check passes and
+// the existing snapshot is stale (>24h). This prevents repeated stale warnings
+// without requiring the user to manually run rg snapshot.
+func autoRefreshSnapshot(opts Options, afterSnap snapshot.Snapshot) {
+	// Build a fresh snapshot from the current check results.
+	refreshed := snapshot.Snapshot{
+		Version:   snapshot.Version,
+		CreatedAt: time.Now().UTC(),
+		GitCommit: snapshot.GitCommit(opts.ProjectRoot),
+		Tests:     afterSnap.Tests,
+		Routes:    afterSnap.Routes,
+	}
+
+	if err := snapshot.Write(opts.ProjectRoot, refreshed); err != nil {
+		// Silently ignore — this is a convenience feature, not critical.
+		return
+	}
+
+	// Print a subtle note on stderr so the user knows it happened.
+	_, _ = fmt.Fprintf(opts.Stderr, "%s Snapshot auto-refreshed (was stale).\n",
+		ui.Paint(opts.Stderr, ui.ColorMuted, ui.SymbolInfo))
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/failures"
+	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/scanner"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
@@ -150,7 +152,16 @@ func Run(opts Options) (Result, error) {
 	if opts.JSON {
 		return result, writeJSON(opts.Stdout, result)
 	}
-	return result, writeHuman(opts, result, prompted)
+	if err := writeHuman(opts, result, prompted); err != nil {
+		return result, err
+	}
+
+	// W2: suggest git hook auto-install after init (interactive only, not --yes batch).
+	if opts.Interactive && !opts.Yes {
+		offerHookInstall(opts, detected.Root)
+	}
+
+	return result, nil
 }
 
 // promptServerURL uses huh Select when on a real TTY, falls back to basic prompt.
@@ -395,4 +406,57 @@ func convertRoutes(routes []scanner.Route) []config.Route {
 		out = append(out, config.Route{Method: route.Method, Path: route.Path})
 	}
 	return out
+}
+
+// offerHookInstall prompts the user to install the git hook after init.
+// Only shown in interactive mode when a .git directory exists.
+func offerHookInstall(opts Options, projectRoot string) {
+	// Check if .git exists (hook only makes sense in a git repo).
+	gitDir := filepath.Join(projectRoot, ".git")
+	if _, err := os.Stat(gitDir); err != nil {
+		return
+	}
+
+	// Check if hook is already installed.
+	hookPath := filepath.Join(gitDir, "hooks", "pre-commit")
+	if data, err := os.ReadFile(hookPath); err == nil {
+		content := string(data)
+		if strings.Contains(content, "rg check") || strings.Contains(content, "regressguard") {
+			return // already installed
+		}
+	}
+
+	// Prompt user.
+	if _, ok := opts.Stdin.(*os.File); ok && ui.IsTerminal(opts.Stdin) {
+		var install bool
+		err := huh.NewConfirm().
+			Title("Install pre-commit hook?").
+			Description("Automatically run rg check before every commit").
+			Affirmative("Yes, install").
+			Negative("No, skip").
+			Value(&install).
+			WithTheme(regressGuardTheme()).
+			Run()
+		if err != nil || !install {
+			return
+		}
+	} else {
+		// Non-huh fallback: just print suggestion.
+		_, _ = fmt.Fprintln(opts.Stdout)
+		_, _ = fmt.Fprintln(opts.Stdout, ui.Paint(opts.Stdout, ui.ColorMuted, "Protect every commit:"))
+		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "rg hook install"))
+		return
+	}
+
+	// Install the hook.
+	_, err := hookrun.Install(hookrun.InstallOptions{
+		GitDir:      gitDir,
+		ProjectRoot: projectRoot,
+		Stdout:      opts.Stdout,
+		Stderr:      opts.Stderr,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Hook install failed: %v\n",
+			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
+	}
 }

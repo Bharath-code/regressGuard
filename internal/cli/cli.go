@@ -84,6 +84,7 @@ func NewRootCommand(build BuildInfo) *cobra.Command {
 		newCheckCommand(),
 		newExplainCommand(),
 		newWatchCommand(),
+		newQuickstartCommand(),
 		newStatusCommand(),
 		newHookCommand(),
 		newConfigCommand(),
@@ -154,11 +155,13 @@ func newSnapshotCommand() *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
+		accept, _ := cmd.Flags().GetBool("accept")
 
 		_, err := snapshotrun.Run(snapshotrun.Options{
 			ProjectRoot: ".",
 			JSON:        jsonMode,
 			Verbose:     verbose,
+			Accept:      accept,
 			Stdout:      cmd.OutOrStdout(),
 			Stderr:      cmd.ErrOrStderr(),
 		})
@@ -175,6 +178,7 @@ func newSnapshotCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write diagnostics to stderr")
+	cmd.Flags().Bool("accept", false, "update only routes (skip tests) to accept intentional changes")
 	return cmd
 }
 
@@ -263,6 +267,68 @@ func newWatchCommand() *cobra.Command {
 		},
 	}
 	cmd.SetHelpTemplate(commandHelpTemplate("rg watch"))
+	return cmd
+}
+
+// W1: zero-config first run — init + snapshot in one shot.
+func newQuickstartCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "quickstart",
+		Short: "Auto-configure and snapshot in one command",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			stdout := cmd.OutOrStdout()
+			stderr := cmd.ErrOrStderr()
+			serverURL, _ := cmd.Flags().GetString("server-url")
+			jsonMode, _ := cmd.Flags().GetBool("json")
+
+			// Step 1: init (non-interactive, auto-detect everything).
+			_, _ = fmt.Fprintln(stdout, ui.Paint(stdout, ui.ColorBold, "RegressGuard quickstart"))
+			_, _ = fmt.Fprintln(stdout)
+
+			initResult, err := initrun.Run(initrun.Options{
+				StartDir:    ".",
+				ServerURL:   serverURL,
+				Yes:         true,
+				JSON:        false, // always human for quickstart
+				Interactive: false,
+				Stdout:      stdout,
+				Stderr:      stderr,
+			})
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					if jsonMode {
+						return writeActionable(cmd, issue)
+					}
+					return issue
+				}
+				return err
+			}
+
+			_, _ = fmt.Fprintln(stdout)
+
+			// Step 2: snapshot.
+			_, err = snapshotrun.Run(snapshotrun.Options{
+				ProjectRoot: initResult.ProjectRoot,
+				JSON:        jsonMode,
+				Stdout:      stdout,
+				Stderr:      stderr,
+			})
+			if err != nil {
+				if issue, ok := err.(failures.Actionable); ok {
+					if jsonMode {
+						return writeActionable(cmd, issue)
+					}
+					return issue
+				}
+				return err
+			}
+
+			return nil
+		},
+	}
+	cmd.SetHelpTemplate(commandHelpTemplate("rg quickstart --server-url http://localhost:3000"))
+	cmd.Flags().String("server-url", "", "dev server URL (default: http://localhost:3000)")
+	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	return cmd
 }
 
@@ -545,6 +611,7 @@ Commands:
   init       Configure RegressGuard for this project
   snapshot   Record the current passing state
   check      Compare current state against the snapshot
+  quickstart Auto-configure and snapshot in one command
   status     Quick health check (sub-second)
   hook       Install or remove git hooks
   config     View or edit project config
@@ -552,6 +619,9 @@ Commands:
 
 Start:
   rg init
+
+Zero-config:
+  rg quickstart
 `, "\n")
 }
 

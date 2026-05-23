@@ -29,6 +29,7 @@ type Options struct {
 	ProjectRoot string
 	JSON        bool
 	Verbose     bool
+	Accept      bool // W6: update only changed routes without re-running everything
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -72,6 +73,12 @@ func Run(opts Options) (Result, error) {
 	cfg, err := loadConfig(opts.ProjectRoot)
 	if err != nil {
 		return Result{}, err
+	}
+
+	// W6: --accept mode — re-hit only routes and update the existing snapshot
+	// without re-running the full test suite. Faster than a full rg snapshot.
+	if opts.Accept {
+		return runAccept(opts, cfg)
 	}
 
 	snap := snapshot.Snapshot{
@@ -410,4 +417,153 @@ func showHookNudge(w io.Writer, projectRoot string) {
 	// Mark as shown.
 	s.HookNudgeShown = true
 	_ = state.Save(projectRoot, s)
+}
+
+// runAccept implements the --accept flow: re-hit routes and update the snapshot
+// without re-running the full test suite. This is faster than a full rg snapshot
+// and is intended for accepting intentional changes.
+func runAccept(opts Options, cfg config.Config) (Result, error) {
+	// Load existing snapshot — required for --accept.
+	if !snapshot.Exists(opts.ProjectRoot) {
+		return Result{}, failures.Actionable{
+			Title:       "rg snapshot --accept failed: no existing snapshot.",
+			Cause:       "The --accept flag updates an existing snapshot. Run a full snapshot first.",
+			Next:        "rg snapshot",
+			MoreContext: "rg snapshot --help",
+		}
+	}
+	existingSnap, err := snapshot.Load(opts.ProjectRoot)
+	if err != nil {
+		return Result{}, failures.Actionable{
+			Title:       "rg snapshot --accept failed: snapshot is unreadable.",
+			Cause:       err.Error(),
+			Next:        "rg snapshot",
+			MoreContext: "rg snapshot --help",
+		}
+	}
+
+	routes := cfg.Routes
+	showSpinner := !opts.JSON && !opts.Verbose && ui.ColorEnabled(opts.Stderr)
+
+	// Check server reachability.
+	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
+		return Result{}, failures.Actionable{
+			Title:       "rg snapshot --accept failed: dev server is not responding.",
+			Cause:       "The server at " + cfg.ServerURL + " did not respond within 500ms.",
+			Next:        "npm run dev",
+			MoreContext: "rg doctor",
+		}
+	}
+
+	// Hit routes.
+	var routeSpinner *ui.Spinner
+	if showSpinner && len(routes) > 0 {
+		routeSpinner = ui.NewSpinner(opts.Stderr, fmt.Sprintf("Re-hitting %d routes...", len(routes)))
+		routeSpinner.Start()
+	} else if opts.Verbose {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Re-hitting %d routes...\n", ui.SymbolRunning, len(routes))
+	}
+
+	hitOpts := engine.HitOptions{
+		ServerURL:    cfg.ServerURL,
+		Auth:         cfg.Auth,
+		IgnoreFields: cfg.IgnoreFields,
+		Verbose:      opts.Verbose,
+	}
+	var routeProgressWriter io.Writer
+	if opts.Verbose {
+		routeProgressWriter = opts.Stderr
+	}
+	routeResults := engine.HitRoutes(routes, hitOpts, routeProgressWriter)
+
+	captured := 0
+	skipped := 0
+	for _, rr := range routeResults {
+		if rr.Skipped {
+			skipped++
+			continue
+		}
+		captured++
+		key := snapshot.RouteKey(rr.Method, rr.Path)
+		existingSnap.Routes[key] = snapshot.RouteRecord{
+			Method:           rr.Method,
+			Path:             rr.Path,
+			Status:           rr.Status,
+			SchemaHash:       rr.SchemaHash,
+			NormalizedSchema: rr.NormalizedSchema,
+			MS:               rr.MS,
+		}
+	}
+
+	if routeSpinner != nil {
+		routeLine := fmt.Sprintf("%-10s %d updated", "Routes", captured)
+		if skipped > 0 {
+			routeLine += fmt.Sprintf(", %d skipped", skipped)
+		}
+		routeSpinner.StopSuccess(routeLine)
+	}
+
+	// Update snapshot metadata.
+	existingSnap.CreatedAt = time.Now().UTC()
+	existingSnap.GitCommit = snapshot.GitCommit(opts.ProjectRoot)
+
+	// Save updated snapshot.
+	if err := snapshot.Write(opts.ProjectRoot, existingSnap); err != nil {
+		return Result{}, fmt.Errorf("save snapshot: %w", err)
+	}
+
+	// Archive to history.
+	if err := history.Archive(opts.ProjectRoot, existingSnap); err != nil {
+		fmt.Fprintf(opts.Stderr, "%s Snapshot history archive failed: %v\n",
+			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
+	}
+
+	// Build result.
+	outcomes := make([]RouteOutcome, 0, len(routeResults))
+	for _, rr := range routeResults {
+		outcomes = append(outcomes, RouteOutcome{
+			Method:     rr.Method,
+			Path:       rr.Path,
+			Status:     rr.Status,
+			SchemaHash: rr.SchemaHash,
+			MS:         rr.MS,
+			Skipped:    rr.Skipped,
+			SkipReason: rr.SkipReason,
+		})
+	}
+
+	result := Result{
+		Status:       "accepted",
+		SnapshotPath: snapshot.Path(opts.ProjectRoot),
+		Tests: TestSummary{
+			Passed:   existingSnap.Tests.Passed,
+			Failed:   existingSnap.Tests.Failed,
+			Skipped:  existingSnap.Tests.Skipped,
+			Duration: fmtDuration(existingSnap.Tests.Duration),
+		},
+		Routes: outcomes,
+		Next:   "rg check",
+	}
+
+	if opts.JSON {
+		return result, writeJSON(opts.Stdout, result)
+	}
+
+	// Human output for --accept.
+	lines := []string{
+		ui.Header(opts.Stdout, "snapshot --accept"),
+		ui.Separator(opts.Stdout),
+		"",
+		ui.ResultLine(opts.Stdout, "pass", "Routes", fmt.Sprintf("%d updated, %d skipped", captured, skipped)),
+		ui.ResultLine(opts.Stdout, "pass", "Tests", "preserved from previous snapshot"),
+		"",
+		ui.Separator(opts.Stdout),
+		"",
+		"Saved:",
+		"  " + ui.Paint(opts.Stdout, ui.ColorMuted, result.SnapshotPath),
+	}
+	lines = append(lines, ui.NextSection(opts.Stdout, "rg check")...)
+	ui.StaggeredPrint(opts.Stdout, lines)
+
+	return result, nil
 }
