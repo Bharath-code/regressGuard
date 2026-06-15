@@ -173,6 +173,75 @@ func TestRun_passScreen(t *testing.T) {
 	}
 }
 
+// P0-1: a transient route failure during check (timeout/connection drop) must
+// surface as a non-blocking WARNING, never block the commit as CRITICAL.
+func TestRun_transientRouteError_notCritical(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Root probe must succeed so the server reads as reachable.
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// The configured route drops the connection mid-request, forcing a
+		// transient client error (request failed) rather than a real response.
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Errorf("test server does not support hijacking")
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Errorf("hijack failed: %v", err)
+			return
+		}
+		_ = conn.Close()
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 5, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	writeCfg(t, dir, cfg)
+
+	key := snapshot.RouteKey("GET", "/api/health")
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 5, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "abc12345", MS: 30},
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Status == "critical" {
+		t.Errorf("transient route error must not be critical\nstatus=%q\nstdout:\n%s", result.Status, stdout.String())
+	}
+	if result.Summary.Critical != 0 {
+		t.Errorf("expected 0 critical findings, got %d", result.Summary.Critical)
+	}
+	foundUnverified := false
+	for _, f := range result.Results {
+		if f.Type == engine.TypeUnverified && f.Route == key {
+			foundUnverified = true
+		}
+	}
+	if !foundUnverified {
+		t.Errorf("expected an unverified finding for %s, got %+v", key, result.Results)
+	}
+}
+
 // --- E4-T9: critical screen (Flow F) ---
 
 func TestRun_criticalScreen_statusChange(t *testing.T) {

@@ -46,6 +46,13 @@ type RouteRecord struct {
 	// Populated from snapshot version 1 onward.
 	NormalizedSchema json.RawMessage `json:"normalizedSchema,omitempty"`
 	MS               int64           `json:"ms"`
+	// Unverified marks a route that could not be measured during a check run
+	// (transient timeout, connection error). Such routes are reported as a
+	// non-blocking WARNING by the diff engine — never a CRITICAL regression —
+	// so a network blip cannot block a commit. Only set on the "after" side of
+	// a check; never persisted into a baseline snapshot.
+	Unverified       bool   `json:"unverified,omitempty"`
+	UnverifiedReason string `json:"unverifiedReason,omitempty"`
 }
 
 // RouteKey returns the canonical map key for a route.

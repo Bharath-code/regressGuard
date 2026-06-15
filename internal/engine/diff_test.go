@@ -240,6 +240,56 @@ func TestDiffSnapshots_routeDisappeared_critical(t *testing.T) {
 	}
 }
 
+// P0-1: a route that could not be measured during the check (transient
+// timeout / connection error) must be a non-blocking WARNING, never CRITICAL.
+func TestDiffSnapshots_unverifiedRoute_warningNotCritical(t *testing.T) {
+	key := "GET /api/users"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/users", Status: 200, SchemaHash: "abc", MS: 30},
+	})
+	// Route present in after but marked unverified (e.g. it timed out mid-check).
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/users", Unverified: true, UnverifiedReason: "request failed: timeout"},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if result.HasCritical {
+		t.Errorf("a transient/unverified route must not be CRITICAL\nresults: %+v", result.Results)
+	}
+	if !result.HasWarning {
+		t.Error("an unverified route should surface as a WARNING")
+	}
+	found := false
+	for _, r := range result.Results {
+		if r.Type == TypeUnverified && r.Route == key {
+			found = true
+			if r.Severity != SeverityWarning {
+				t.Errorf("expected WARNING severity, got %q", r.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected an unverified-type finding for the route")
+	}
+}
+
+func TestDiffSnapshots_unverifiedRoute_notCountedAsPassed(t *testing.T) {
+	key := "GET /api/users"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/users", Status: 200, SchemaHash: "abc", MS: 30},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/users", Unverified: true, UnverifiedReason: "timeout"},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if result.PassedRoutes != 0 {
+		t.Errorf("an unverified route must not be counted as passed, got PassedRoutes=%d", result.PassedRoutes)
+	}
+}
+
 func TestDiffSnapshots_cleanPass_zeroCounts(t *testing.T) {
 	key := "GET /api/health"
 	rec := snapshot.RouteRecord{Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "abc", MS: 20}

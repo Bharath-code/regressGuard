@@ -31,6 +31,12 @@ type RouteResult struct {
 	MS               int64
 	Skipped          bool
 	SkipReason       string
+	// Errored is true when the route was attempted but failed for a transient
+	// reason (timeout, connection error). It is false for intentional skips
+	// (config skip, missing required body). Used by the check pipeline to mark
+	// the route Unverified so a transient failure becomes a WARNING, not a
+	// CRITICAL "route no longer present" regression.
+	Errored bool
 	// Body is only populated when verbose mode is active.
 	Body []byte
 }
@@ -166,6 +172,7 @@ func hitRoute(client *http.Client, route config.Route, opts HitOptions) RouteRes
 			Method:     route.Method,
 			Path:       route.Path,
 			Skipped:    true,
+			Errored:    true,
 			SkipReason: "could not build request: " + err.Error(),
 		}
 	}
@@ -186,6 +193,7 @@ func hitRoute(client *http.Client, route config.Route, opts HitOptions) RouteRes
 			Method:     route.Method,
 			Path:       route.Path,
 			Skipped:    true,
+			Errored:    true,
 			SkipReason: "request failed: " + err.Error(),
 		}
 	}

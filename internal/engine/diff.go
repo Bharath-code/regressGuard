@@ -17,10 +17,11 @@ const (
 
 // ResultType classifies what changed.
 const (
-	TypeTests   = "tests"
-	TypeStatus  = "status"
-	TypeSchema  = "schema"
-	TypeTiming  = "timing"
+	TypeTests      = "tests"
+	TypeStatus     = "status"
+	TypeSchema     = "schema"
+	TypeTiming     = "timing"
+	TypeUnverified = "unverified"
 )
 
 // CheckResult is a single finding from the diff engine.
@@ -86,6 +87,25 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 				Before:   snap.Status,
 				After:    nil,
 				Message:  fmt.Sprintf("%s: route no longer present in current run", key),
+			})
+			continue
+		}
+
+		// P0-1: route could not be measured this run (transient timeout /
+		// connection error). Report as a non-blocking WARNING and skip all
+		// comparisons — a network blip must never block a commit.
+		if curr.Unverified {
+			reason := curr.UnverifiedReason
+			if reason == "" {
+				reason = "could not reach route this run"
+			}
+			results = append(results, CheckResult{
+				Severity: SeverityWarning,
+				Type:     TypeUnverified,
+				Route:    key,
+				Before:   snap.Status,
+				After:    nil,
+				Message:  fmt.Sprintf("%s: could not verify (%s) — not counted as a regression", key, reason),
 			})
 			continue
 		}

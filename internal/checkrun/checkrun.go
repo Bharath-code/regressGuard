@@ -332,10 +332,22 @@ func Run(opts Options) (Result, error) {
 		Routes: make(map[string]snapshot.RouteRecord),
 	}
 	for _, rr := range routeResults {
+		key := snapshot.RouteKey(rr.Method, rr.Path)
 		if rr.Skipped {
+			// P0-1: a transient failure (timeout/connection error) is recorded as
+			// Unverified so the diff engine reports a WARNING instead of a CRITICAL
+			// "route no longer present". Intentional skips (config skip, missing
+			// body) are omitted as before.
+			if rr.Errored {
+				afterSnap.Routes[key] = snapshot.RouteRecord{
+					Method:           rr.Method,
+					Path:             rr.Path,
+					Unverified:       true,
+					UnverifiedReason: rr.SkipReason,
+				}
+			}
 			continue
 		}
-		key := snapshot.RouteKey(rr.Method, rr.Path)
 		afterSnap.Routes[key] = snapshot.RouteRecord{
 			Method:           rr.Method,
 			Path:             rr.Path,
@@ -928,13 +940,23 @@ func withDefaults(opts Options) Options {
 // the existing snapshot is stale (>24h). This prevents repeated stale warnings
 // without requiring the user to manually run rg snapshot.
 func autoRefreshSnapshot(opts Options, afterSnap snapshot.Snapshot) {
-	// Build a fresh snapshot from the current check results.
+	// Build a fresh snapshot from the current check results. Never persist
+	// Unverified routes into a baseline — a baseline must only contain measured
+	// state. (Unverified implies WARNING, so this path is normally unreachable
+	// on a pass, but the filter keeps the invariant explicit.)
+	routes := make(map[string]snapshot.RouteRecord, len(afterSnap.Routes))
+	for key, rec := range afterSnap.Routes {
+		if rec.Unverified {
+			continue
+		}
+		routes[key] = rec
+	}
 	refreshed := snapshot.Snapshot{
 		Version:   snapshot.Version,
 		CreatedAt: time.Now().UTC(),
 		GitCommit: snapshot.GitCommit(opts.ProjectRoot),
 		Tests:     afterSnap.Tests,
-		Routes:    afterSnap.Routes,
+		Routes:    routes,
 	}
 
 	if err := snapshot.Write(opts.ProjectRoot, refreshed); err != nil {
