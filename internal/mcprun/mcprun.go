@@ -117,7 +117,10 @@ func validatePath(projectRoot, requestedPath string) error {
 		return fmt.Errorf("invalid path: %w", err)
 	}
 	// Ensure the resolved path is within or equal to the project root.
-	if !strings.HasPrefix(abs, projectRoot) {
+	// Use filepath.Rel for a true boundary check — a plain prefix compare would
+	// wrongly accept a sibling like /root-evil for project root /root.
+	rel, err := filepath.Rel(projectRoot, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("path %q is outside the allowed project root %q", requestedPath, projectRoot)
 	}
 	return nil
