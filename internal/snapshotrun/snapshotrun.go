@@ -30,6 +30,7 @@ type Options struct {
 	JSON        bool
 	Verbose     bool
 	Accept      bool // W6: update only changed routes without re-running everything
+	Celebrate   bool // P1-1: opt in to motion effects (default calm/instant)
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -68,6 +69,9 @@ type RouteOutcome struct {
 // can render them consistently.
 func Run(opts Options) (Result, error) {
 	opts = withDefaults(opts)
+
+	// P1-1: calm by default — motion effects are opt-in via --celebrate.
+	ui.SetAnimations(opts.Celebrate)
 
 	// E3-T1: load and validate config.
 	cfg, err := loadConfig(opts.ProjectRoot)
@@ -142,7 +146,7 @@ func Run(opts Options) (Result, error) {
 	} else if len(routes) > 0 {
 		// E11-T5: live route progress table on TTY with 4+ routes.
 		var routeProgress *ui.RouteProgress
-		if showSpinner && len(routes) >= 4 {
+		if showSpinner && ui.AnimationsEnabled() && len(routes) >= 4 {
 			routeInputs := make([]struct{ Method, Path string }, len(routes))
 			for i, r := range routes {
 				routeInputs[i] = struct{ Method, Path string }{r.Method, r.Path}

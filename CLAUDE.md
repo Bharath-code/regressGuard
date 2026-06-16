@@ -21,11 +21,11 @@ verification via MCP**. Gated on three conditions before growth spend:
 3. Harden + test the MCP path; make the open-core/monetization story real.
 
 ## Current priorities (see docs/staff-review-2026-06.md for acceptance criteria)
-- **P0** — Transient-error false positive in `diff.go` + `checkrun.go` (a single timed-out
-  route during `rg check` is dropped from the after-snapshot and wrongly flagged
-  CRITICAL "route no longer present"). Fix before anything else.
-- **P0** — Secret hygiene: `auth.testToken` is plaintext in a non-git-ignored config.
-- **P1** — Animations opt-in; test the untested MCP server (`internal/mcprun`).
+- ✅ Done: P0 transient-error FP, P0 secret hygiene (verified), P1-2 MCP hardening + tests,
+  P1-1 calm-by-default UX (animations opt-in via `--celebrate`), P1-3 scoring-semantics docs
+  + warning-only routes excluded from "unchanged" count.
+- **P2** (specs only, per AGENTS.md scope) — open-core/monetization positioning; stack
+  expansion (FastAPI/Django) spec gated behind PRD change-control.
 
 ## Architecture quick map
 - `internal/engine` — test runner, route hitter, schema normalizer, diff (severity rules).

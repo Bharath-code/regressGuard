@@ -42,6 +42,18 @@ const (
 	ColorBorder  Color = ansiBorder
 )
 
+// animationsEnabled gates optional motion effects: staggered reveal, slide-in
+// table rows, success/critical reveals, and the live route-progress table. Off
+// by default so rg renders instantly; opt in with `rg check --celebrate`.
+var animationsEnabled bool
+
+// SetAnimations toggles optional motion effects. Call once at startup before
+// any rendering. Has no effect on non-TTY/JSON/hook output (already motionless).
+func SetAnimations(on bool) { animationsEnabled = on }
+
+// AnimationsEnabled reports whether optional motion effects are active.
+func AnimationsEnabled() bool { return animationsEnabled }
+
 func ColorEnabled(w io.Writer) bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false

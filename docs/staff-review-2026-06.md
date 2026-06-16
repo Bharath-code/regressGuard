@@ -92,13 +92,24 @@ Review correction: this risk was overstated. The capability already exists and i
 - [ ] Residual gap (low priority): `doctorrun` and `initrun` have no unit tests for the
       secret-warning path. Track under test-coverage backlog, not a P0.
 
-### P1-1 · Calm-by-default UX (animations opt-in)
+### P1-1 · Calm-by-default UX (animations opt-in) — ✅ DONE (2026-06-16)
+**Implementation:** added a package-level `ui.SetAnimations`/`ui.AnimationsEnabled` toggle
+(default OFF). The five motion primitives (`StaggeredPrint`, `AnimatedTableRow`,
+`SuccessCelebration`, `CriticalReveal`, and the live `RouteProgress` table) now gate their
+timing on `animationsEnabled && ColorEnabled(w)` — styling/color is preserved, only the
+sleeps/frames are dropped. The `Spinner` defers its first frame by `spinnerStartDelay`
+(400ms) so quick phases never flash. `rg check`/`rg snapshot` call `SetAnimations(opts.Celebrate)`
+at startup; new `--celebrate` flag on both commands opts back in.
 **Acceptance criteria:**
-- [ ] Default `rg check`/`rg snapshot` output renders instantly: no per-row slide-in, no
-      celebration, no staggered reveal. Spinners remain only for operations >400ms.
-- [ ] Animations available behind `--celebrate` flag and/or first-run only.
-- [ ] Non-TTY/JSON/hook/CI behavior unchanged (already animation-free).
-- [ ] Output still fits one 80-column viewport and passes existing `ui` tests.
+- [x] Default `rg check`/`rg snapshot` output renders instantly: no per-row slide-in, no
+      celebration, no staggered reveal. Spinners remain only for operations >400ms
+      (deferred first frame).
+- [x] Animations available behind `--celebrate` flag.
+- [x] Non-TTY/JSON/hook/CI behavior unchanged (gated on `ColorEnabled`, already animation-free).
+- [x] Output still fits one 80-column viewport (`TestCommandHelpIncludesContractSections`
+      green) and existing `ui` tests pass.
+- [x] New tests (`internal/ui/animation_test.go`): celebration/reveal/stagger render
+      instantly with animations off and animate when on; fast operation shows no spinner frame.
 
 ### P1-2 · Test + harden the MCP path (the wedge) — ✅ DONE (2026-06-15)
 **Implementation:** added `internal/mcprun/mcprun_test.go`; hardened `validatePath` (S4)
@@ -116,13 +127,18 @@ sibling like `/root-evil` for project root `/root`.
       live tool arg (current tools take a git ref, not a path). Wire it when a path-taking
       tool is added, or remove it. One-line Claude Code / Cursor registration doc still TODO.
 
-### P1-3 · Document scoring semantics + close `passedRoutes` cosmetic gap
+### P1-3 · Document scoring semantics + close `passedRoutes` cosmetic gap — ✅ DONE (2026-06-16)
+**Implementation:** `diff.go` now tracks `routeWarning` alongside `routeCritical`; a route is
+counted in `PassedRoutes` only when it produced no finding at all, so a warning-only route
+(e.g. timing) is excluded from "Routes: N unchanged" and from `summary.passed` in `--json`
+(the agent/MCP contract). README "How it works" gained a **Known limitations** section.
 **Acceptance criteria:**
-- [ ] README "How it works" documents the test-failure-delta limitation and array
-      first-element comparison limitation.
-- [ ] A route with only a timing WARNING is reported separately, not counted in
+- [x] README "How it works" documents the test-failure-delta limitation (failures compared
+      by count, not identity) and the array first-element comparison limitation.
+- [x] A route with only a timing WARNING is reported separately, not counted in
       "Routes: N unchanged."
-- [ ] Test asserts the count excludes warning-only routes.
+- [x] Test asserts the count excludes warning-only routes
+      (`TestDiffSnapshots_timingWarningRoute_notCountedAsPassed`).
 
 ### P2-1 · Open-core monetization stub / positioning
 **Acceptance criteria:**

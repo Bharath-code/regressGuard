@@ -111,6 +111,7 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 		}
 
 		routeCritical := false
+		routeWarning := false
 
 		// E4-T4: status code change.
 		if snap.Status != curr.Status {
@@ -152,10 +153,13 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 					After:    curr.MS,
 					Message:  fmt.Sprintf("%s: +%dms slower (%dms -> %dms)", key, timingDelta, snap.MS, curr.MS),
 				})
+				routeWarning = true
 			}
 		}
 
-		if !routeCritical {
+		// Only count a route as "unchanged" when it produced no finding at all —
+		// a warning-only route (e.g. timing) is reported separately (P1-3).
+		if !routeCritical && !routeWarning {
 			passedRoutes++
 		}
 	}

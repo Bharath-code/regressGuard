@@ -44,6 +44,10 @@ var (
 const (
 	// staggerDelay is the pause between result lines for the "drop into place" feel.
 	staggerDelay = 80 * time.Millisecond
+
+	// spinnerStartDelay defers the first spinner frame so operations that finish
+	// quickly never flash a spinner — only sustained work (>400ms) shows one.
+	spinnerStartDelay = 400 * time.Millisecond
 )
 
 // Spinner renders an animated phase indicator on a TTY stderr stream.
@@ -148,6 +152,14 @@ func (s *Spinner) StopWarning(result string) time.Duration {
 }
 
 func (s *Spinner) run() {
+	// Defer the first frame: a fast operation that stops before the threshold
+	// renders nothing, keeping output calm for the common quick case.
+	select {
+	case <-s.done:
+		return
+	case <-time.After(spinnerStartDelay):
+	}
+
 	ticker := time.NewTicker(80 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -216,10 +228,10 @@ func RunWithSpinner(title string, action func()) error {
 // StaggeredPrint prints lines with a brief delay between each for a
 // "dropping into place" effect. Only staggers on TTY; prints immediately otherwise.
 func StaggeredPrint(w io.Writer, lines []string) {
-	isTTY := ColorEnabled(w)
+	animate := animationsEnabled && ColorEnabled(w)
 	for i, line := range lines {
 		_, _ = fmt.Fprintln(w, line)
-		if isTTY && i < len(lines)-1 {
+		if animate && i < len(lines)-1 {
 			time.Sleep(staggerDelay)
 		}
 	}
