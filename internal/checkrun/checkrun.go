@@ -32,6 +32,7 @@ type Options struct {
 	HookMode    bool
 	Since       string // git ref to scope routes by changed files (e.g. "HEAD~1", "main")
 	AutoServer  bool   // spawn dev server from config, wait for ready, kill on exit
+	Celebrate   bool   // opt in to motion effects (staggered reveal, slide-in, celebration)
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -70,6 +71,9 @@ func Run(opts Options) (Result, error) {
 	if os.Getenv("RG_HOOK") == "1" {
 		opts.HookMode = true
 	}
+
+	// P1-1: calm by default — motion effects are opt-in via --celebrate.
+	ui.SetAnimations(opts.Celebrate)
 
 	cfg, err := loadConfig(opts.ProjectRoot)
 	if err != nil {
@@ -271,7 +275,7 @@ func Run(opts Options) (Result, error) {
 
 	var routeSpinner *ui.Spinner
 	var routeProgress *ui.RouteProgress
-	if showSpinner && len(routes) >= 4 {
+	if showSpinner && ui.AnimationsEnabled() && len(routes) >= 4 {
 		routeInputs := make([]struct{ Method, Path string }, len(routes))
 		for i, r := range routes {
 			routeInputs[i] = struct{ Method, Path string }{r.Method, r.Path}

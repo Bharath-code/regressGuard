@@ -191,6 +191,32 @@ func TestDiffSnapshots_timingRegression_warning(t *testing.T) {
 	}
 }
 
+// P1-3: a route whose only change is a non-blocking timing WARNING is reported
+// separately and must NOT be tallied in "Routes: N unchanged."
+func TestDiffSnapshots_timingWarningRoute_notCountedAsPassed(t *testing.T) {
+	warned := "GET /api/profile"
+	clean := "GET /api/health"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "abc", MS: 40},
+		clean:  {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "def", MS: 30},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		// +420ms — a timing WARNING.
+		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "abc", MS: 460},
+		// unchanged.
+		clean: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "def", MS: 30},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if !result.HasWarning {
+		t.Fatal("expected a timing WARNING")
+	}
+	if result.PassedRoutes != 1 {
+		t.Errorf("a warning-only route must not count as unchanged; expected 1 passed (the clean route), got %d", result.PassedRoutes)
+	}
+}
+
 func TestDiffSnapshots_timingSmallDelta_noWarning(t *testing.T) {
 	// +50ms — below the 200ms threshold.
 	key := "GET /api/health"

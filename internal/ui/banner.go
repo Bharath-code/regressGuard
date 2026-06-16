@@ -80,6 +80,12 @@ func SuccessCelebration(w io.Writer, message string) {
 		return
 	}
 
+	// Calm default: render the final styled line instantly, no frames.
+	if !animationsEnabled {
+		_, _ = fmt.Fprintln(w, successCheckStyle.Render("OK")+" "+message)
+		return
+	}
+
 	// Frame 1: dim
 	frame1 := Paint(w, ColorMuted, ".") + " " + message
 	_, _ = fmt.Fprint(w, "\r"+frame1)
@@ -103,8 +109,10 @@ func CriticalReveal(w io.Writer, message string) {
 		return
 	}
 
-	// Brief pause before revealing bad news.
-	time.Sleep(100 * time.Millisecond)
+	// Brief pause before revealing bad news (only when animating).
+	if animationsEnabled {
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	x := failXStyle.Render("X")
 	_, _ = fmt.Fprintln(w, x+" "+message)
@@ -112,12 +120,8 @@ func CriticalReveal(w io.Writer, message string) {
 
 // AnimatedTableRow prints a table row with a brief slide-in effect on TTY.
 func AnimatedTableRow(w io.Writer, row string, delay time.Duration) {
-	if !ColorEnabled(w) {
-		_, _ = fmt.Fprintln(w, row)
-		return
+	if animationsEnabled && ColorEnabled(w) {
+		time.Sleep(delay)
 	}
-	time.Sleep(delay)
 	_, _ = fmt.Fprintln(w, row)
 }
-
-

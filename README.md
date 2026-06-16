@@ -215,6 +215,15 @@ Config lives in `.regressguard/config.json` (human-readable, git-ignoreable).
 
    This ensures the shape integrity of endpoints remains stable across runs even when database IDs and timestamps change.
 
+4. A route whose only change is a non-blocking **WARNING** (e.g. a timing regression) is reported on its own line and is **not** counted in the "Routes: N unchanged" summary or in `summary.passed` of `--json` output.
+
+### Known limitations
+
+These are deliberate trade-offs in v1 — favoring zero false positives over exhaustive detection. They are on the roadmap, not accidental:
+
+- **Test results are compared by count, not by identity.** `rg check` flags a CRITICAL only when the number of failing tests *increases*. If one test starts failing while a previously-failing test starts passing (net failure count unchanged), the regression is not detected. Pair `rg check` with your normal test runner in CI for per-test assertions.
+- **Array schemas are inferred from the first element.** The schema normalizer represents a JSON array's shape using its first element. If later elements have a different shape (heterogeneous arrays), that divergence is not reflected in the schema hash and will not be flagged.
+
 ---
 
 ## Exit codes

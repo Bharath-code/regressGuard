@@ -156,12 +156,14 @@ func newSnapshotCommand() *cobra.Command {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		accept, _ := cmd.Flags().GetBool("accept")
+		celebrate, _ := cmd.Flags().GetBool("celebrate")
 
 		_, err := snapshotrun.Run(snapshotrun.Options{
 			ProjectRoot: ".",
 			JSON:        jsonMode,
 			Verbose:     verbose,
 			Accept:      accept,
+			Celebrate:   celebrate,
 			Stdout:      cmd.OutOrStdout(),
 			Stderr:      cmd.ErrOrStderr(),
 		})
@@ -178,7 +180,8 @@ func newSnapshotCommand() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write diagnostics to stderr")
-	cmd.Flags().Bool("accept", false, "update only routes (skip tests) to accept intentional changes")
+	cmd.Flags().Bool("accept", false, "update only routes (skip tests); accept intentional changes")
+	cmd.Flags().Bool("celebrate", false, "enable motion effects (off by default)")
 	return cmd
 }
 
@@ -189,6 +192,7 @@ func newCheckCommand() *cobra.Command {
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		since, _ := cmd.Flags().GetString("since")
 		autoServer, _ := cmd.Flags().GetBool("auto-server")
+		celebrate, _ := cmd.Flags().GetBool("celebrate")
 
 		result, err := checkrun.Run(checkrun.Options{
 			ProjectRoot: ".",
@@ -196,6 +200,7 @@ func newCheckCommand() *cobra.Command {
 			Verbose:     verbose,
 			Since:       since,
 			AutoServer:  autoServer,
+			Celebrate:   celebrate,
 			Stdout:      cmd.OutOrStdout(),
 			Stderr:      cmd.ErrOrStderr(),
 		})
@@ -219,6 +224,7 @@ func newCheckCommand() *cobra.Command {
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
 	cmd.Flags().String("since", "", "scope to routes changed since git ref (HEAD~1, main)")
 	cmd.Flags().Bool("auto-server", false, "spawn dev server from config, run check, kill on exit")
+	cmd.Flags().Bool("celebrate", false, "enable motion effects (off by default)")
 	return cmd
 }
 
