@@ -2,13 +2,17 @@
 
 **Before you commit, know what broke.**
 
-RegressGuard is a CLI safety net for developers using AI coding agents (Claude Code, Cursor, Codex). It catches silent regressions introduced during AI sessions — before they reach production.
+When an AI coding agent edits your app it can silently break an API contract — a removed field, a changed status code, a test that now fails — and still report success. RegressGuard records a known-good baseline and tells you (or the agent) exactly what regressed.
 
-Two commands. Zero test-writing required. Under 15 seconds.
+**It is built to live inside the agent's own loop.** RegressGuard ships as an [MCP](https://modelcontextprotocol.io) server, so agents like Claude Code and Cursor can verify their own work and self-correct *before* a human ever sees the diff — zero extra steps. The same engine also runs as a plain CLI for humans and CI.
 
 ```
+# Agent-native (primary): the agent calls these as MCP tools in its loop
+snapshot → check → status        # see "Agent-native verification (MCP)" below
+
+# Human / CI (also works): two commands, no test-writing, under 15 seconds
 rg snapshot   # record the known-good state
-rg check      # compare after AI edits — see what broke
+rg check      # compare after edits — see what broke
 ```
 
 ---
@@ -150,6 +154,46 @@ Bypass with `git commit --no-verify` only when you accept the risk.
 
 ---
 
+## Agent-native verification (MCP)
+
+This is RegressGuard's primary mode. Instead of waiting for a human to run `rg check`, the AI agent calls it **as a tool inside its own edit loop** — so it catches and fixes regressions it just introduced, before handing the change back to you.
+
+Start the server (stdio transport):
+
+```sh
+rg mcp serve
+```
+
+**Register with Claude Code:**
+
+```sh
+claude mcp add regressguard -- rg mcp serve
+```
+
+**Register with Cursor** (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "regressguard": { "command": "rg", "args": ["mcp", "serve"] }
+  }
+}
+```
+
+The agent then has three tools:
+
+| Tool | Purpose |
+|---|---|
+| `snapshot` | Record the current passing state as the baseline |
+| `check` | Compare current state against the snapshot; returns structured findings with severity |
+| `status` | Sub-second health check (snapshot age, route/config/hook status) — no tests run |
+
+Tool responses are the **same machine-readable payload as `rg check --json`** — see [`docs/json-contract.md`](docs/json-contract.md). Every tool call is recorded to an append-only audit log under `.regressguard/` (tool, status, duration, timestamp).
+
+A typical loop: the agent edits code → calls `check` → reads the structured findings → fixes the regression → calls `check` again → only then reports done.
+
+---
+
 ## Commands
 
 | Command | Purpose |
@@ -157,6 +201,7 @@ Bypass with `git commit --no-verify` only when you accept the risk.
 | `rg init` | Configure RegressGuard for this project |
 | `rg snapshot` | Record the current passing state |
 | `rg check` | Compare current state against the snapshot |
+| `rg mcp serve` | Run the MCP server so AI agents can self-verify (see above) |
 | `rg hook install` | Install the pre-commit git hook |
 | `rg hook uninstall` | Remove the git hook |
 | `rg config get <key>` | Read a config value |
@@ -265,6 +310,15 @@ Python, FastAPI, and Django support is planned for v2.
 ## Demo fixture
 
 A minimal Next.js API fixture is included in `fixtures/nextjs-app` for demos and testing. See [fixtures/README.md](fixtures/README.md).
+
+---
+
+## Open core
+
+This repo — the CLI and MCP server — is free and MIT, forever. A hosted team layer
+(cross-repo dashboard, history retention, compliance export) is scoped in
+[`docs/paid-layer-spec.md`](docs/paid-layer-spec.md). Anything that runs on one machine for
+one repo stays free; the paid layer is strictly additive.
 
 ---
 

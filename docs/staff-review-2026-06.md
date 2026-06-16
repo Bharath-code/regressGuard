@@ -140,13 +140,21 @@ counted in `PassedRoutes` only when it produced no finding at all, so a warning-
 - [x] Test asserts the count excludes warning-only routes
       (`TestDiffSnapshots_timingWarningRoute_notCountedAsPassed`).
 
-### P2-1 · Open-core monetization stub / positioning
+### P2-1 · Open-core monetization stub / positioning — ✅ DONE (2026-06-16)
+**Implementation (docs only — no code):** README re-centered on agent-native verification
+(MCP as the primary mode; new "Agent-native verification (MCP)" section with `rg mcp serve`
++ Claude Code/Cursor registration; `rg mcp serve` added to the command table; human CLI/CI
+framed as secondary). Added `docs/json-contract.md` (stable, versioned `rg check --json`
+contract for agents + future SaaS ingest) and `docs/paid-layer-spec.md` (one-page open-core
+boundary + org dashboard / history retention / compliance export, scoped not built). README
+gained an "Open core" footer linking the paid spec.
 **Acceptance criteria:**
-- [ ] README + landing narrative re-centered on "agent-native verification" (RG in the
+- [x] README + landing narrative re-centered on "agent-native verification" (RG in the
       agent loop), with the human CI use-case secondary.
-- [ ] A documented `rg check --json` contract suitable for a future SaaS ingest.
-- [ ] One-page spec for the paid layer (org dashboard, history retention, compliance
-      export) committed to `docs/` — not built, just scoped, so open-core is credible.
+- [x] A documented `rg check --json` contract suitable for a future SaaS ingest
+      (`docs/json-contract.md`).
+- [x] One-page spec for the paid layer (org dashboard, history retention, compliance
+      export) committed to `docs/` — not built, just scoped (`docs/paid-layer-spec.md`).
 
 ### P2-2 · Expand wedge surface (stacks)
 **Acceptance criteria:**

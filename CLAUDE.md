@@ -23,9 +23,10 @@ verification via MCP**. Gated on three conditions before growth spend:
 ## Current priorities (see docs/staff-review-2026-06.md for acceptance criteria)
 - ✅ Done: P0 transient-error FP, P0 secret hygiene (verified), P1-2 MCP hardening + tests,
   P1-1 calm-by-default UX (animations opt-in via `--celebrate`), P1-3 scoring-semantics docs
-  + warning-only routes excluded from "unchanged" count.
-- **P2** (specs only, per AGENTS.md scope) — open-core/monetization positioning; stack
-  expansion (FastAPI/Django) spec gated behind PRD change-control.
+  + warning-only routes excluded from "unchanged" count, P2-1 open-core positioning +
+  `docs/json-contract.md` + `docs/paid-layer-spec.md`.
+- **P2-2** (spec only, per AGENTS.md scope) — FastAPI/Django route-discovery spec for
+  `scanner`, gated behind PRD change-control before any code.
 
 ## Architecture quick map
 - `internal/engine` — test runner, route hitter, schema normalizer, diff (severity rules).
