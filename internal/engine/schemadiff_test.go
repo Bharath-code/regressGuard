@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -147,5 +148,24 @@ func TestFormatFieldChanges_nil(t *testing.T) {
 	lines := FormatFieldChanges(nil)
 	if lines != nil {
 		t.Error("expected nil for nil changes")
+	}
+}
+
+func TestFormatFieldChanges_complexTypes(t *testing.T) {
+	before := []byte(`{"users":[{"name":"string","email":"string"}]}`)
+	after := []byte(`{"users":"empty_array"}`)
+
+	changes := DiffSchemaShapes(before, after)
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d", len(changes))
+	}
+
+	lines := FormatFieldChanges(changes)
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+
+	if strings.Contains(lines[0], "map[") {
+		t.Errorf("complex type should be JSON-encoded, not Go syntax: %q", lines[0])
 	}
 }

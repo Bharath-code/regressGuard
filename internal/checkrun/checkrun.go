@@ -329,9 +329,10 @@ func Run(opts Options) (Result, error) {
 	afterSnap := snapshot.Snapshot{
 		Version: snapshot.Version,
 		Tests: snapshot.TestSummary{
-			Passed:  testResult.Passed,
-			Failed:  testResult.Failed,
-			Skipped: testResult.Skipped,
+			Passed:     testResult.Passed,
+			Failed:     testResult.Failed,
+			Skipped:    testResult.Skipped,
+			DurationMs: testResult.Duration.Milliseconds(),
 		},
 		Routes: make(map[string]snapshot.RouteRecord),
 	}

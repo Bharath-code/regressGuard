@@ -29,10 +29,10 @@ type Snapshot struct {
 
 // TestSummary records the test suite outcome at snapshot time.
 type TestSummary struct {
-	Passed   int           `json:"passed"`
-	Failed   int           `json:"failed"`
-	Skipped  int           `json:"skipped"`
-	Duration time.Duration `json:"durationMs"`
+	Passed     int   `json:"passed"`
+	Failed     int   `json:"failed"`
+	Skipped    int   `json:"skipped"`
+	DurationMs int64 `json:"durationMs"`
 }
 
 // RouteRecord holds the captured state for a single route.

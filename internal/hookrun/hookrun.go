@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -21,7 +22,9 @@ const (
 
 	// hookScript is the shell code injected between the markers.
 	// It runs rg check in hook mode and blocks the commit on exit code 1.
-	hookScript = `RG_HOOK=1 rg check
+	// The binary path is resolved at install time to avoid conflicts with
+	// ripgrep (which also installs as `rg`).
+	hookScript = `RG_HOOK=1 {{BIN}} check
 RG_EXIT=$?
 if [ $RG_EXIT -eq 1 ]; then
   echo ""
@@ -32,6 +35,47 @@ fi`
 	hookPreamble = `#!/bin/sh
 `
 )
+
+// resolveBinaryPath returns the absolute path to the RegressGuard binary.
+// It tries (in order): the running binary via os.Executable, `regressguard`
+// on PATH, and finally `rg` on PATH. If `rg` resolves to ripgrep, it falls
+// back to `regressguard` or the os.Executable path.
+func resolveBinaryPath() string {
+	if exe, err := os.Executable(); err == nil {
+		if abs, err := filepath.Abs(exe); err == nil {
+			return abs
+		}
+		return exe
+	}
+	if path, err := exec.LookPath("regressguard"); err == nil {
+		return path
+	}
+	if path, err := exec.LookPath("rg"); err == nil {
+		if !isRipgrep(path) {
+			return path
+		}
+	}
+	return "regressguard"
+}
+
+// isRipgrep checks whether the binary at path is ripgrep.
+func isRipgrep(path string) bool {
+	cmd := exec.Command(path, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "ripgrep")
+}
+
+// isRipgrepOnPath checks whether `rg` on PATH is ripgrep.
+func isRipgrepOnPath() bool {
+	path, err := exec.LookPath("rg")
+	if err != nil {
+		return false
+	}
+	return isRipgrep(path)
+}
 
 // InstallOptions configures rg hook install.
 type InstallOptions struct {
@@ -57,6 +101,14 @@ func Install(opts InstallOptions) (string, error) {
 	opts = installDefaults(opts)
 
 	hookPath := filepath.Join(opts.GitDir, "hooks", "pre-commit")
+
+	// Detect ripgrep conflict — warn the user.
+	if isRipgrepOnPath() {
+		_, _ = fmt.Fprintf(opts.Stdout, "%s ripgrep detected as `rg` on PATH.\n", ui.Paint(opts.Stdout, ui.ColorWarn, ui.SymbolWarning))
+		_, _ = fmt.Fprintf(opts.Stdout, "  The hook uses the absolute RegressGuard path — it is safe.\n")
+		_, _ = fmt.Fprintf(opts.Stdout, "  To run interactively, use the full binary path.\n")
+		_, _ = fmt.Fprintf(opts.Stdout, "\n")
+	}
 
 	// Detect hook managers and print guidance before writing.
 	if manager := detectHookManager(opts.ProjectRoot); manager != "" {
@@ -137,8 +189,11 @@ func Uninstall(opts UninstallOptions) error {
 }
 
 // managedBlock returns the full text of the RegressGuard-managed block.
+// The binary path is resolved at install time to avoid ripgrep conflicts.
 func managedBlock() string {
-	return blockBegin + "\n" + hookScript + "\n" + blockEnd + "\n"
+	binPath := resolveBinaryPath()
+	script := strings.ReplaceAll(hookScript, "{{BIN}}", binPath)
+	return blockBegin + "\n" + script + "\n" + blockEnd + "\n"
 }
 
 // injectBlock inserts or replaces the managed block in existing hook content.

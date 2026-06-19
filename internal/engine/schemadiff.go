@@ -55,9 +55,9 @@ func diffValues(prefix string, before, after any, changes *[]FieldChange) {
 		return
 	}
 
-	// Primitive type change.
-	bs := fmt.Sprintf("%v", before)
-	as := fmt.Sprintf("%v", after)
+	// Primitive type change (including array-to-scalar or map-to-scalar).
+	bs := formatSchemaValue(before)
+	as := formatSchemaValue(after)
 	if bs != as {
 		key := prefix
 		if key == "" {
@@ -103,17 +103,35 @@ func diffMaps(prefix string, before, after map[string]any, changes *[]FieldChang
 			*changes = append(*changes, FieldChange{
 				Field:  fullKey,
 				Action: "removed",
-				Before: fmt.Sprintf("%v", bVal),
+				Before: formatSchemaValue(bVal),
 			})
 		case !inBefore && inAfter:
 			*changes = append(*changes, FieldChange{
 				Field:  fullKey,
 				Action: "added",
-				After:  fmt.Sprintf("%v", aVal),
+				After:  formatSchemaValue(aVal),
 			})
 		default:
 			diffValues(fullKey, bVal, aVal, changes)
 		}
+	}
+}
+
+// formatSchemaValue converts a normalized schema value to a string for
+// FieldChange.Before/After. Simple type tokens are returned as-is.
+// Complex types (maps, arrays) are JSON-encoded to avoid Go syntax leaks.
+func formatSchemaValue(v any) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case nil:
+		return ""
+	default:
+		b, err := json.Marshal(val)
+		if err != nil {
+			return fmt.Sprintf("%v", val)
+		}
+		return string(b)
 	}
 }
 

@@ -53,8 +53,8 @@ type DiffResult struct {
 // returns a structured DiffResult. It applies the severity rules from
 // PRD Section 8.2 Module 5:
 //
-//   - CRITICAL: test suite newly failing, status code change, schema hash mismatch
-//   - WARNING:  response time increase >200ms AND >50% of baseline
+//   - CRITICAL: test suite newly failing, status code change, schema field removed/changed
+//   - WARNING:  optional field added, response time increase >200ms AND >50% of baseline
 //   - PASS:     everything within acceptable variance
 func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 	var results []CheckResult
@@ -65,11 +65,11 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 		results = append(results, CheckResult{
 			Severity: SeverityCritical,
 			Type:     TypeTests,
-			Before:   before.Tests.Passed,
-			After:    after.Tests.Passed,
+			Before:   before.Tests.Failed,
+			After:    after.Tests.Failed,
 			Message: fmt.Sprintf(
-				"Tests: %d passed -> %d passed (%d new failure(s))",
-				before.Tests.Passed, after.Tests.Passed, delta,
+				"Tests: %d -> %d failing (%d new failure(s))",
+				before.Tests.Failed, after.Tests.Failed, delta,
 			),
 		})
 	}
@@ -127,18 +127,32 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 		}
 
 		// E4-T5: schema hash mismatch — with field-level diff when shapes are available.
+		// BUG-2: field additions are WARNING (backward-compatible), removals/changes are CRITICAL.
 		if snap.SchemaHash != curr.SchemaHash && snap.SchemaHash != "" && curr.SchemaHash != "" {
 			fieldChanges := DiffSchemaShapes(snap.NormalizedSchema, curr.NormalizedSchema)
+			severity := classifySchemaChange(fieldChanges)
+			beforeHash := snap.SchemaHash
+			afterHash := curr.SchemaHash
+			if len(beforeHash) > 8 {
+				beforeHash = beforeHash[:8]
+			}
+			if len(afterHash) > 8 {
+				afterHash = afterHash[:8]
+			}
 			results = append(results, CheckResult{
-				Severity:     SeverityCritical,
+				Severity:     severity,
 				Type:         TypeSchema,
 				Route:        key,
-				Before:       snap.SchemaHash[:8],
-				After:        curr.SchemaHash[:8],
+				Before:       beforeHash,
+				After:        afterHash,
 				Message:      fmt.Sprintf("%s: response schema changed", key),
 				FieldChanges: fieldChanges,
 			})
-			routeCritical = true
+			if severity == SeverityCritical {
+				routeCritical = true
+			} else {
+				routeWarning = true
+			}
 		}
 
 		// E4-T6: timing regression — only flag when delta >200ms AND >50% increase.
@@ -186,4 +200,20 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 		WarningCount:  warningCount,
 		PassedRoutes:  passedRoutes,
 	}
+}
+
+// classifySchemaChange determines the severity of a schema change based on
+// the field-level diff. Per PRD Section 8.2:
+//   - All changes are "added" → WARNING (backward-compatible)
+//   - Any change is "removed" or "changed" → CRITICAL (breaking)
+func classifySchemaChange(changes []FieldChange) string {
+	if len(changes) == 0 {
+		return SeverityCritical
+	}
+	for _, c := range changes {
+		if c.Action == "removed" || c.Action == "changed" {
+			return SeverityCritical
+		}
+	}
+	return SeverityWarning
 }

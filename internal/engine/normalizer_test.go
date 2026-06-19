@@ -18,12 +18,55 @@ func TestNormalize_primitives(t *testing.T) {
 		{float64(42), "number"},
 		{true, "boolean"},
 		{false, "boolean"},
+		{"1.0.0", "string"},
+		{"v2.1.3", "string"},
 	}
 	for _, tc := range cases {
 		got := Normalize(tc.input)
 		if got != tc.want {
 			t.Errorf("Normalize(%v) = %v, want %v", tc.input, got, tc.want)
 		}
+	}
+}
+
+func TestNormalize_semverNotToken(t *testing.T) {
+	versions := []string{"1.0.0", "v2.1.3", "2026.06.19"}
+	for _, v := range versions {
+		got := Normalize(v)
+		if got == "token" {
+			t.Errorf("Normalize(%q) = %q, want anything but 'token'", v, got)
+		}
+	}
+}
+
+func TestNormalize_realJwtIsToken(t *testing.T) {
+	jwt := "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+	got := Normalize(jwt)
+	if got != "token" {
+		t.Errorf("Normalize(real JWT) = %q, want 'token'", got)
+	}
+}
+
+func TestNormalize_requestScopedFieldsStripped(t *testing.T) {
+	input := map[string]any{
+		"status":         "ok",
+		"requestId":      "req_abc123",
+		"traceId":        "trace_xyz789",
+		"correlationId":  "corr_456",
+		"spanId":         "span_012",
+		"parentId":       "parent_345",
+		"buildId":        "build_678",
+		"request_id":     "req_snake_case",
+		"trace_id":       "trace_snake",
+	}
+	got := Normalize(input).(map[string]any)
+	for _, key := range []string{"requestId", "traceId", "correlationId", "spanId", "parentId", "buildId", "request_id", "trace_id"} {
+		if _, ok := got[key]; ok {
+			t.Errorf("expected %q to be stripped", key)
+		}
+	}
+	if got["status"] != "string" {
+		t.Errorf("expected status='string', got %v", got["status"])
 	}
 }
 

@@ -59,8 +59,8 @@ func TestInstall_createsHookFile(t *testing.T) {
 	if !strings.Contains(content, blockEnd) {
 		t.Error("hook missing end marker")
 	}
-	if !strings.Contains(content, "rg check") {
-		t.Error("hook missing 'rg check' command")
+	if !strings.Contains(content, "check") {
+		t.Error("hook missing 'check' command")
 	}
 	if !strings.Contains(content, "#!/bin/sh") {
 		t.Error("hook missing shebang")
@@ -90,7 +90,7 @@ func TestInstall_outputMentionsHookPath(t *testing.T) {
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"OK", "pre-commit", "rg check", "Bypass", "--no-verify", "rg hook uninstall"} {
+	for _, want := range []string{"OK", "pre-commit", "check", "Bypass", "--no-verify", "rg hook uninstall"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("install output missing %q\nGot:\n%s", want, out)
 		}
@@ -221,13 +221,55 @@ func TestInstall_hookScriptBlocksOnExit1(t *testing.T) {
 
 	// The script must capture rg check exit code and block on 1.
 	if !strings.Contains(content, "RG_EXIT=$?") {
-		t.Error("hook should capture rg check exit code")
+		t.Error("hook should capture check exit code")
 	}
 	if !strings.Contains(content, "exit 1") {
 		t.Error("hook should exit 1 on critical regression")
 	}
 	if !strings.Contains(content, "--no-verify") {
 		t.Error("hook should mention --no-verify bypass")
+	}
+}
+
+func TestInstall_hookScriptUsesAbsolutePath(t *testing.T) {
+	dir := makeGitDir(t)
+	var stdout bytes.Buffer
+
+	if _, err := Install(InstallOptions{
+		GitDir:      filepath.Join(dir, ".git"),
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+	}); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+
+	content := readHook(t, dir)
+	if strings.Contains(content, "RG_HOOK=1 rg check") {
+		t.Error("hook should not use bare 'rg check' — must use absolute path")
+	}
+	hasAbsPath := strings.Contains(content, "RG_HOOK=1 /") || strings.Contains(content, "RG_HOOK=1 regressguard")
+	if !hasAbsPath {
+		t.Errorf("hook should use absolute binary path or 'regressguard' fallback\nGot:\n%s", content)
+	}
+}
+
+func TestInstall_warnsOnRipgrepConflict(t *testing.T) {
+	dir := makeGitDir(t)
+	var stdout bytes.Buffer
+
+	if _, err := Install(InstallOptions{
+		GitDir:      filepath.Join(dir, ".git"),
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+	}); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+
+	if isRipgrepOnPath() {
+		out := stdout.String()
+		if !strings.Contains(out, "ripgrep") {
+			t.Errorf("expected ripgrep conflict warning\nGot:\n%s", out)
+		}
 	}
 }
 

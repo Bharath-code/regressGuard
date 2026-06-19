@@ -14,28 +14,43 @@ import (
 // dynamicKeys are stripped during normalization so that schema hashes remain
 // stable across runs even when values change.
 var dynamicKeys = map[string]bool{
-	"createdAt":    true,
-	"updatedAt":    true,
-	"timestamp":    true,
-	"deletedAt":    true,
-	"id":           true,
-	"uuid":         true,
-	"token":        true,
-	"sessionId":    true,
-	"nonce":        true,
-	"accessToken":  true,
-	"refreshToken": true,
-	"expiresAt":    true,
-	"expires_at":   true,
-	"created_at":   true,
-	"updated_at":   true,
-	"deleted_at":   true,
+	"createdAt":      true,
+	"updatedAt":      true,
+	"timestamp":      true,
+	"deletedAt":      true,
+	"id":             true,
+	"uuid":           true,
+	"token":          true,
+	"sessionId":      true,
+	"nonce":          true,
+	"accessToken":    true,
+	"refreshToken":   true,
+	"expiresAt":      true,
+	"expires_at":     true,
+	"created_at":     true,
+	"updated_at":     true,
+	"deleted_at":     true,
+	"requestId":      true,
+	"request_id":     true,
+	"traceId":        true,
+	"trace_id":       true,
+	"correlationId":  true,
+	"correlation_id": true,
+	"spanId":         true,
+	"span_id":        true,
+	"parentId":       true,
+	"parent_id":      true,
+	"buildId":        true,
+	"build_id":       true,
 }
 
 var (
 	reISO8601 = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?`)
 	reUUID    = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	reJWT     = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
+	// reJWT matches JWT tokens. JWT headers are base64url-encoded JSON objects
+	// starting with `{"`, which encodes to `eyJ` — so we require that prefix
+	// to avoid matching version strings like "1.0.0".
+	reJWT = regexp.MustCompile(`^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 )
 
 // Normalize converts a parsed JSON value into a stable type-shape representation.

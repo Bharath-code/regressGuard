@@ -45,6 +45,12 @@ func TestDiffSnapshots_testRegression_critical(t *testing.T) {
 	if result.Results[0].Type != TypeTests {
 		t.Errorf("expected type=%q, got %q", TypeTests, result.Results[0].Type)
 	}
+	if result.Results[0].Before != 0 {
+		t.Errorf("expected Before=0 (failed count), got %v", result.Results[0].Before)
+	}
+	if result.Results[0].After != 2 {
+		t.Errorf("expected After=2 (failed count), got %v", result.Results[0].After)
+	}
 }
 
 func TestDiffSnapshots_testCountImproved_noRegression(t *testing.T) {
@@ -122,25 +128,108 @@ func TestDiffSnapshots_statusUnchanged_noRegression(t *testing.T) {
 func TestDiffSnapshots_schemaChange_critical(t *testing.T) {
 	key := "GET /api/user"
 	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
-		key: {Method: "GET", Path: "/api/user", Status: 200, SchemaHash: "hash-before-12345678", MS: 40},
+		key: {Method: "GET", Path: "/api/user", Status: 200, SchemaHash: "hash-before-12345678", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","subscription":"string"}`)},
 	})
 	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
-		key: {Method: "GET", Path: "/api/user", Status: 200, SchemaHash: "hash-after-87654321", MS: 40},
+		key: {Method: "GET", Path: "/api/user", Status: 200, SchemaHash: "hash-after-87654321", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string"}`)},
 	})
 
 	result := DiffSnapshots(before, after)
 
 	if !result.HasCritical {
-		t.Error("expected HasCritical=true for schema change")
+		t.Error("expected HasCritical=true for schema field removal")
 	}
 	found := false
 	for _, r := range result.Results {
 		if r.Type == TypeSchema && r.Route == key {
 			found = true
+			if r.Severity != SeverityCritical {
+				t.Errorf("expected CRITICAL severity for field removal, got %q", r.Severity)
+			}
 		}
 	}
 	if !found {
 		t.Error("expected a schema-type finding")
+	}
+}
+
+func TestDiffSnapshots_schemaFieldAdded_warning(t *testing.T) {
+	key := "GET /api/profile"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-before-12345678", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","email":"string"}`)},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-after-87654321", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","email":"string","newFeature":"string"}`)},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if result.HasCritical {
+		t.Error("field addition should NOT be CRITICAL")
+	}
+	if !result.HasWarning {
+		t.Error("expected HasWarning=true for field addition")
+	}
+}
+
+func TestDiffSnapshots_schemaFieldRemoved_critical(t *testing.T) {
+	key := "GET /api/profile"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-before-12345678", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","subscription":"string"}`)},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-after-87654321", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string"}`)},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if !result.HasCritical {
+		t.Error("field removal should be CRITICAL")
+	}
+}
+
+func TestDiffSnapshots_schemaMixedChanges_critical(t *testing.T) {
+	key := "GET /api/profile"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-before-12345678", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","subscription":"string"}`)},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		key: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "hash-after-87654321", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","tier":"string"}`)},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if !result.HasCritical {
+		t.Error("mixed changes with any removal should be CRITICAL")
+	}
+}
+
+func TestDiffSnapshots_schemaAddedRoute_notCountedAsPassed(t *testing.T) {
+	warned := "GET /api/profile"
+	clean := "GET /api/health"
+	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "aaaahash-before123", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string"}`)},
+		clean:  {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "bbbbhash-stable456", MS: 30},
+	})
+	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
+		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "cccchash-after789", MS: 40,
+			NormalizedSchema: []byte(`{"name":"string","newField":"string"}`)},
+		clean: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "bbbbhash-stable456", MS: 30},
+	})
+
+	result := DiffSnapshots(before, after)
+
+	if result.PassedRoutes != 1 {
+		t.Errorf("warning-only schema route must not count as unchanged; expected 1 passed, got %d", result.PassedRoutes)
 	}
 }
 

@@ -125,10 +125,10 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 	snap.Tests = snapshot.TestSummary{
-		Passed:   testResult.Passed,
-		Failed:   testResult.Failed,
-		Skipped:  testResult.Skipped,
-		Duration: testResult.Duration,
+		Passed:     testResult.Passed,
+		Failed:     testResult.Failed,
+		Skipped:    testResult.Skipped,
+		DurationMs: testResult.Duration.Milliseconds(),
 	}
 
 	// E3-T3 / E3-T4: discover routes and hit them.
@@ -543,7 +543,7 @@ func runAccept(opts Options, cfg config.Config) (Result, error) {
 			Passed:   existingSnap.Tests.Passed,
 			Failed:   existingSnap.Tests.Failed,
 			Skipped:  existingSnap.Tests.Skipped,
-			Duration: fmtDuration(existingSnap.Tests.Duration),
+			Duration: fmtDuration(time.Duration(existingSnap.Tests.DurationMs) * time.Millisecond),
 		},
 		Routes: outcomes,
 		Next:   "rg check",
