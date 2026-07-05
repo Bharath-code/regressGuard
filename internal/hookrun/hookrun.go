@@ -23,8 +23,19 @@ const (
 	// hookScript is the shell code injected between the markers.
 	// It runs rg check in hook mode and blocks the commit on exit code 1.
 	// The binary path is resolved at install time to avoid conflicts with
-	// ripgrep (which also installs as `rg`).
-	hookScript = `RG_HOOK=1 {{BIN}} check
+	// ripgrep (which also installs as `rg`). The sanity check must fail
+	// LOUDLY: a stale path would otherwise exit 127, which the exit-code
+	// branch below reads as "no regression" — the guard would fail open.
+	// `</dev/null` prevents ripgrep from hanging on stdin if it is ever hit.
+	hookScript = `RG_BIN="{{BIN}}"
+if ! "$RG_BIN" version </dev/null 2>/dev/null | grep -q RegressGuard; then
+  echo "RegressGuard: binary missing or not RegressGuard at: $RG_BIN" >&2
+  echo "  Regression checks CANNOT run (is 'rg' resolving to ripgrep?)." >&2
+  echo "  Fix: reinstall the hook with 'hook install' from the RegressGuard binary." >&2
+  echo "  Bypass once (at your own risk): git commit --no-verify" >&2
+  exit 1
+fi
+RG_HOOK=1 "$RG_BIN" check
 RG_EXIT=$?
 if [ $RG_EXIT -eq 1 ]; then
   echo ""
@@ -51,15 +62,15 @@ func resolveBinaryPath() string {
 		return path
 	}
 	if path, err := exec.LookPath("rg"); err == nil {
-		if !isRipgrep(path) {
+		if !IsRipgrep(path) {
 			return path
 		}
 	}
 	return "regressguard"
 }
 
-// isRipgrep checks whether the binary at path is ripgrep.
-func isRipgrep(path string) bool {
+// IsRipgrep checks whether the binary at path is ripgrep.
+func IsRipgrep(path string) bool {
 	cmd := exec.Command(path, "--version")
 	out, err := cmd.Output()
 	if err != nil {
@@ -74,7 +85,7 @@ func isRipgrepOnPath() bool {
 	if err != nil {
 		return false
 	}
-	return isRipgrep(path)
+	return IsRipgrep(path)
 }
 
 // InstallOptions configures rg hook install.

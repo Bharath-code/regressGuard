@@ -472,7 +472,7 @@ func newVersionCommand(build BuildInfo) *cobra.Command {
 		Short: "Print version and build metadata",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			_, err := fmt.Fprintf(out, "rg %s\ncommit: %s\nbuild date: %s\nos/arch: %s/%s\n",
+			_, err := fmt.Fprintf(out, "RegressGuard rg %s\ncommit: %s\nbuild date: %s\nos/arch: %s/%s\n",
 				build.Version, build.Commit, build.Date, runtime.GOOS, runtime.GOARCH)
 			return err
 		},

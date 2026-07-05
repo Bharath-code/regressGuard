@@ -38,8 +38,14 @@ brew install Bharath-code/tap/rg
 **Verify**
 
 ```sh
-rg version
+rg version   # first line must say "RegressGuard"
 ```
+
+> **Have ripgrep installed?** ripgrep also ships as `rg`, and whichever comes first on
+> PATH wins — `rg check` could silently run ripgrep instead of RegressGuard. If
+> `rg version` doesn't say "RegressGuard", invoke the full path (e.g.
+> `/usr/local/bin/rg`). The pre-commit hook and GitHub Action already use absolute
+> paths and are unaffected; `rg doctor` flags the collision.
 
 ---
 

@@ -56,13 +56,22 @@ runs:
     - name: Install RegressGuard
       shell: bash
       run: |
+        # Pin the install dir and use the absolute path everywhere below:
+        # GitHub runners ship ripgrep as `rg`, so bare `rg` is unreliable.
+        export RG_INSTALL_DIR="${RG_INSTALL_DIR:-/usr/local/bin}"
         VERSION="${{ inputs.version }}"
         if [ "$VERSION" = "latest" ]; then
           curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh
         else
           curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh -s -- --version "$VERSION"
         fi
-        echo "Installed: $(rg version 2>/dev/null | head -1)"
+        RG_BIN="$RG_INSTALL_DIR/rg"
+        if [ ! -x "$RG_BIN" ]; then
+          echo "::error::RegressGuard binary not found at $RG_BIN after install"
+          exit 1
+        fi
+        echo "RG_BIN=$RG_BIN" >> "$GITHUB_ENV"
+        echo "Installed: $("$RG_BIN" version 2>/dev/null | head -1)"
 
     - name: Resolve config defaults
       id: config
@@ -124,7 +133,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         set +e
-        RESULT=$(rg check --json 2>/dev/null)
+        RESULT=$("$RG_BIN" check --json 2>/dev/null)
         EXIT_CODE=$?
         set -e
 

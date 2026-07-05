@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
+	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
@@ -149,6 +151,21 @@ func runChecks(opts Options) bool {
 		printPass(opts.Stdout, "Git", "available")
 	} else {
 		printWarn(opts.Stdout, "Git", "not available — git context in rg check will be skipped")
+	}
+
+	// 7. Binary name collision — ripgrep also installs as `rg`.
+	if path, err := exec.LookPath("rg"); err == nil && hookrun.IsRipgrep(path) {
+		printWarn(opts.Stdout, "rg on PATH", path+" is ripgrep — shell commands like `rg check` run ripgrep, not RegressGuard")
+		_, _ = fmt.Fprintf(opts.Stdout, "  Tip: invoke RegressGuard by absolute path (installed hooks already do)\n")
+	}
+
+	// 8. Stale pre-commit hook using bare `rg` — silently broken when ripgrep
+	// shadows the binary, which defeats the guard entirely.
+	hookPath := filepath.Join(opts.ProjectRoot, ".git", "hooks", "pre-commit")
+	if data, err := os.ReadFile(hookPath); err == nil && strings.Contains(string(data), "RG_HOOK=1 rg check") {
+		printFail(opts.Stdout, "Pre-commit hook", "uses bare 'rg' — runs ripgrep instead of RegressGuard if both are installed")
+		_, _ = fmt.Fprintf(opts.Stdout, "  Fix: rg hook install\n")
+		allOK = false
 	}
 
 	_, _ = fmt.Fprintln(opts.Stdout)

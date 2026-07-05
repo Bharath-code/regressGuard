@@ -247,9 +247,33 @@ func TestInstall_hookScriptUsesAbsolutePath(t *testing.T) {
 	if strings.Contains(content, "RG_HOOK=1 rg check") {
 		t.Error("hook should not use bare 'rg check' — must use absolute path")
 	}
-	hasAbsPath := strings.Contains(content, "RG_HOOK=1 /") || strings.Contains(content, "RG_HOOK=1 regressguard")
+	hasAbsPath := strings.Contains(content, `RG_BIN="/`) || strings.Contains(content, `RG_BIN="regressguard"`)
 	if !hasAbsPath {
 		t.Errorf("hook should use absolute binary path or 'regressguard' fallback\nGot:\n%s", content)
+	}
+}
+
+func TestInstall_hookScriptSanityChecksBinary(t *testing.T) {
+	dir := makeGitDir(t)
+	var stdout bytes.Buffer
+
+	if _, err := Install(InstallOptions{
+		GitDir:      filepath.Join(dir, ".git"),
+		ProjectRoot: dir,
+		Stdout:      &stdout,
+	}); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+
+	content := readHook(t, dir)
+
+	// A stale or wrong binary (e.g. ripgrep) must fail LOUDLY, not fall
+	// through as exit 127 → commit allowed.
+	if !strings.Contains(content, "grep -q RegressGuard") {
+		t.Error("hook should verify the binary identifies as RegressGuard")
+	}
+	if !strings.Contains(content, "hook install") {
+		t.Error("sanity-check failure message should tell the user how to reinstall")
 	}
 }
 

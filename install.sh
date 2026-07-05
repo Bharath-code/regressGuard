@@ -69,18 +69,30 @@ else
   sudo chmod +x "$INSTALL_DIR/$BINARY"
 fi
 
-# Verify.
-if command -v rg >/dev/null 2>&1; then
-  echo "OK Installed rg $VERSION to $INSTALL_DIR/rg"
-  echo ""
-  echo "Verify:"
-  echo "  rg version"
+# Verify using the absolute path — `command -v rg` may find ripgrep instead.
+INSTALLED="$INSTALL_DIR/$BINARY"
+if [ -x "$INSTALLED" ]; then
+  echo "OK Installed rg $VERSION to $INSTALLED"
 else
-  echo "OK Installed to $INSTALL_DIR/rg"
+  echo "Install failed: $INSTALLED is missing or not executable."
+  exit 1
+fi
+
+RESOLVED="$(command -v rg 2>/dev/null || true)"
+if [ -z "$RESOLVED" ]; then
   echo ""
   echo "rg is not in your PATH. Add this to your shell profile:"
   echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+elif [ "$RESOLVED" != "$INSTALLED" ]; then
   echo ""
-  echo "Then verify:"
-  echo "  rg version"
+  echo "WARNING: 'rg' in your PATH resolves to $RESOLVED, not RegressGuard."
+  if "$RESOLVED" --version 2>/dev/null | grep -q ripgrep; then
+    echo "That is ripgrep. Typing 'rg' will run ripgrep, not RegressGuard."
+  fi
+  echo "Use the full path instead:"
+  echo "  $INSTALLED version"
 fi
+
+echo ""
+echo "Verify:"
+echo "  $INSTALLED version"
