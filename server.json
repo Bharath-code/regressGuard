@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.bharath-code/regressguard",
+  "description": "Deterministic API regression verification for AI coding agents: snapshot a known-good baseline, check edits for broken contracts (removed fields, status changes, newly failing tests) with repair hints — no LLM judging, no cloud.",
+  "repository": {
+    "url": "https://github.com/Bharath-code/regressguard",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Bharath-code/regressguard/releases/latest",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "rg",
+      "runtimeArguments": [
+        { "type": "positional", "value": "mcp" },
+        { "type": "positional", "value": "serve" }
+      ]
+    }
+  ]
+}

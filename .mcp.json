@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "regressguard": {
+      "command": "rg",
+      "args": ["mcp", "serve"]
+    }
+  }
+}

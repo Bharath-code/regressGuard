@@ -1,0 +1,19 @@
+{
+  "name": "regressguard",
+  "version": "0.1.0",
+  "description": "Agent-native API regression verification. Snapshot a known-good baseline, then let the agent check its own edits for broken contracts (removed fields, status changes, failing tests) before reporting done. Deterministic — no LLM judging, no cloud.",
+  "author": {
+    "name": "Bharath-code",
+    "url": "https://github.com/Bharath-code/regressguard"
+  },
+  "homepage": "https://github.com/Bharath-code/regressguard",
+  "repository": "https://github.com/Bharath-code/regressguard",
+  "license": "MIT",
+  "keywords": [
+    "regression-testing",
+    "api-contracts",
+    "verification",
+    "mcp",
+    "ai-agents"
+  ]
+}
