@@ -37,7 +37,8 @@ and must bump the snapshot/contract version and be called out in the changelog.
   "before": 200,
   "after": 500,
   "message": "GET /api/users: status 200 -> 500",
-  "schemaDiff": [ /* present only when type == "schema" */ ]
+  "schemaDiff": [ /* present only when type == "schema" */ ],
+  "hint": "changed since snapshot: app/api/users/route.ts"
 }
 ```
 
@@ -49,6 +50,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
 | `before` / `after` | any | Type depends on `type` (see below). Omitted/`null` where not applicable. |
 | `message` | string | Human-readable one-liner. |
 | `schemaDiff` | array | Only on `type == "schema"`. Field-level changes. |
+| `hint` | string | **Added 2026-07 (additive).** Only on CRITICAL findings, best-effort: files changed since the snapshot, filtered to ones plausibly related to the route (path-segment match), falling back to the full changed list. Omitted when nothing changed or git is unavailable. Agents should treat it as a starting point for repair, not ground truth. |
 
 ### `before` / `after` by finding type
 

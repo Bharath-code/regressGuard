@@ -61,6 +61,9 @@ type CheckFinding struct {
 	After      any                  `json:"after,omitempty"`
 	Message    string               `json:"message"`
 	SchemaDiff []engine.FieldChange `json:"schemaDiff,omitempty"`
+	// Hint is a best-effort repair pointer for agents: files changed since the
+	// snapshot, filtered to ones plausibly related to the finding's route.
+	Hint string `json:"hint,omitempty"`
 }
 
 // Run executes the full check pipeline and returns a Result.
@@ -329,10 +332,11 @@ func Run(opts Options) (Result, error) {
 	afterSnap := snapshot.Snapshot{
 		Version: snapshot.Version,
 		Tests: snapshot.TestSummary{
-			Passed:     testResult.Passed,
-			Failed:     testResult.Failed,
-			Skipped:    testResult.Skipped,
-			DurationMs: testResult.Duration.Milliseconds(),
+			Passed:      testResult.Passed,
+			Failed:      testResult.Failed,
+			Skipped:     testResult.Skipped,
+			DurationMs:  testResult.Duration.Milliseconds(),
+			FailedNames: testResult.FailedTests,
 		},
 		Routes: make(map[string]snapshot.RouteRecord),
 	}
@@ -381,9 +385,10 @@ func Run(opts Options) (Result, error) {
 	}
 
 	status := statusFromDiff(diff)
+	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
 	findings := make([]CheckFinding, 0, len(diff.Results))
 	for _, r := range diff.Results {
-		findings = append(findings, CheckFinding{
+		finding := CheckFinding{
 			Severity:   r.Severity,
 			Type:       r.Type,
 			Route:      r.Route,
@@ -391,7 +396,11 @@ func Run(opts Options) (Result, error) {
 			After:      r.After,
 			Message:    r.Message,
 			SchemaDiff: r.FieldChanges,
-		})
+		}
+		if r.Severity == engine.SeverityCritical {
+			finding.Hint = hintForFinding(r.Route, gitFiles)
+		}
+		findings = append(findings, finding)
 	}
 
 	result := Result{
@@ -415,8 +424,6 @@ func Run(opts Options) (Result, error) {
 	if opts.HookMode {
 		return result, writeHook(opts.Stdout, result, diff)
 	}
-
-	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
 
 	// E12-T4: update check streak in state.
 	streak := updateStreak(opts.ProjectRoot, result.Status)
@@ -501,6 +508,50 @@ func gitChangedFiles(root, sinceCommit string) []string {
 		}
 	}
 	return files
+}
+
+// hintForFinding builds the repair hint for a finding: changed-since-snapshot
+// files filtered to ones sharing a path segment with the route (e.g. "users"
+// in "GET /api/users" matches "app/api/users/route.ts"). When nothing matches
+// — or the finding has no route — it falls back to the full changed list, so
+// the agent always gets a starting point. Empty when nothing changed.
+func hintForFinding(route string, changedFiles []string) string {
+	if len(changedFiles) == 0 {
+		return ""
+	}
+	matches := routeRelatedFiles(route, changedFiles)
+	if len(matches) == 0 {
+		matches = changedFiles
+	}
+	return "changed since snapshot: " + strings.Join(matches, ", ")
+}
+
+// routeRelatedFiles returns changed files whose path contains one of the
+// route's meaningful segments ("api" and dynamic segments are ignored).
+func routeRelatedFiles(route string, files []string) []string {
+	parts := strings.Fields(route)
+	if len(parts) < 2 {
+		return nil
+	}
+	var segs []string
+	for _, s := range strings.Split(parts[1], "/") {
+		s = strings.ToLower(s)
+		if s == "" || s == "api" || strings.HasPrefix(s, ":") || strings.HasPrefix(s, "[") {
+			continue
+		}
+		segs = append(segs, s)
+	}
+	var out []string
+	for _, f := range files {
+		lower := strings.ToLower(f)
+		for _, s := range segs {
+			if strings.Contains(lower, s) {
+				out = append(out, f)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func statusFromDiff(diff engine.DiffResult) string {

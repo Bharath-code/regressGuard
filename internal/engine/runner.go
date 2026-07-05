@@ -19,6 +19,10 @@ type TestResult struct {
 	Failed   int
 	Skipped  int
 	Duration time.Duration
+	// FailedTests holds the names of failing tests when the runner output is
+	// parseable (jest/vitest/bun markers, go test). Best-effort: may be empty
+	// even when Failed > 0, in which case callers fall back to count comparison.
+	FailedTests []string
 	// Raw is the combined stdout+stderr output, useful for --verbose.
 	Raw string
 }
@@ -33,6 +37,10 @@ var (
 	reViFail  = regexp.MustCompile(`(?i)(\d+)\s+failed`)
 	reViSkip  = regexp.MustCompile(`(?i)(\d+)\s+skipped`)
 	reJestSum = regexp.MustCompile(`(?i)Tests:\s+(?:(\d+)\s+skipped,\s*)?(?:(\d+)\s+failed,\s*)?(\d+)\s+passed`)
+	// Failing-test lines: "✕ name (5 ms)" (jest), "× suite > name 12ms" (vitest),
+	// "✗ name" (bun). Trailing duration is stripped.
+	reFailName = regexp.MustCompile(`^\s*[✕✗×]\s+(.+?)(?:\s+\(?\d+(?:\.\d+)?\s*m?s\)?)?\s*$`)
+	reGoFail   = regexp.MustCompile(`^--- FAIL: (\S+)`)
 )
 
 // RunTests executes the configured test command and returns a TestResult.
@@ -90,6 +98,7 @@ func RunTests(testCommand string, workDir string, progressWriter io.Writer) (Tes
 // It tries multiple patterns to support vitest, jest, bun test, and go test.
 func parseTestOutput(output string) TestResult {
 	var result TestResult
+	result.FailedTests = parseFailedTestNames(output)
 
 	// Try jest-style summary first (most specific).
 	if m := reJestSum.FindStringSubmatch(output); m != nil {
@@ -124,6 +133,34 @@ func parseTestOutput(output string) TestResult {
 	}
 
 	return result
+}
+
+// parseFailedTestNames extracts the names of failing tests from runner output.
+// Best-effort across jest/vitest/bun markers and go test; deduplicated in
+// first-seen order. An empty result means "identity unknown" — never an
+// assertion that nothing failed.
+func parseFailedTestNames(output string) []string {
+	var names []string
+	seen := make(map[string]bool)
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name != "" && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if m := reGoFail.FindStringSubmatch(line); m != nil {
+			add(m[1])
+			continue
+		}
+		if m := reFailName.FindStringSubmatch(line); m != nil {
+			add(m[1])
+		}
+	}
+	return names
 }
 
 // splitCommand splits a shell-style command string into argv, handling simple

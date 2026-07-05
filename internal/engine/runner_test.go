@@ -107,3 +107,56 @@ func TestSplitCommand_empty(t *testing.T) {
 		t.Errorf("expected empty slice, got %v", parts)
 	}
 }
+
+func TestParseTestOutput_failedNames_jest(t *testing.T) {
+	output := `
+FAIL src/auth.test.js
+  auth
+    ✓ logs in (4 ms)
+    ✕ rejects bad password (5 ms)
+    ✕ refreshes token
+
+Tests: 2 failed, 1 passed, 3 total
+`
+	result := parseTestOutput(output)
+	want := []string{"rejects bad password", "refreshes token"}
+	if len(result.FailedTests) != 2 || result.FailedTests[0] != want[0] || result.FailedTests[1] != want[1] {
+		t.Errorf("expected %v, got %v", want, result.FailedTests)
+	}
+}
+
+func TestParseTestOutput_failedNames_vitest(t *testing.T) {
+	output := `
+ ✓ src/auth.test.ts (3)
+ × src/user.test.ts > user > updates profile 12ms
+
+ Tests  1 failed | 7 passed (8)
+`
+	result := parseTestOutput(output)
+	if len(result.FailedTests) != 1 || result.FailedTests[0] != "src/user.test.ts > user > updates profile" {
+		t.Errorf("unexpected failed names: %v", result.FailedTests)
+	}
+}
+
+func TestParseTestOutput_failedNames_goTest(t *testing.T) {
+	output := `
+--- FAIL: TestUserUpdate (0.02s)
+--- FAIL: TestAuthRefresh (0.01s)
+FAIL
+`
+	result := parseTestOutput(output)
+	if len(result.FailedTests) != 2 || result.FailedTests[0] != "TestUserUpdate" || result.FailedTests[1] != "TestAuthRefresh" {
+		t.Errorf("unexpected failed names: %v", result.FailedTests)
+	}
+}
+
+func TestParseTestOutput_failedNames_dedupe(t *testing.T) {
+	output := `
+  ✕ rejects bad password (5 ms)
+  ✕ rejects bad password (5 ms)
+`
+	result := parseTestOutput(output)
+	if len(result.FailedTests) != 1 {
+		t.Errorf("expected deduped single name, got %v", result.FailedTests)
+	}
+}

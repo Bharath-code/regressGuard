@@ -4,6 +4,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 )
@@ -60,7 +61,26 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 	var results []CheckResult
 
 	// --- Test diff (E4-T3) ---
-	if after.Tests.Failed > before.Tests.Failed {
+	// Identity comparison first: a test that was not failing at baseline and is
+	// failing now is CRITICAL even when the net failed count is unchanged
+	// (e.g. the change broke test A while fixing test B). Only possible when
+	// the after run parsed names AND the baseline's failures are identifiable
+	// (names recorded, or baseline had zero failures). Otherwise fall back to
+	// the count comparison — old snapshots keep the old behavior, never a new
+	// false positive.
+	newFailures := newNamedFailures(before.Tests, after.Tests)
+	if len(newFailures) > 0 {
+		results = append(results, CheckResult{
+			Severity: SeverityCritical,
+			Type:     TypeTests,
+			Before:   before.Tests.Failed,
+			After:    after.Tests.Failed,
+			Message: fmt.Sprintf(
+				"Tests: %d new failure(s): %s",
+				len(newFailures), joinNames(newFailures, 3),
+			),
+		})
+	} else if after.Tests.Failed > before.Tests.Failed {
 		delta := after.Tests.Failed - before.Tests.Failed
 		results = append(results, CheckResult{
 			Severity: SeverityCritical,
@@ -200,6 +220,39 @@ func DiffSnapshots(before, after snapshot.Snapshot) DiffResult {
 		WarningCount:  warningCount,
 		PassedRoutes:  passedRoutes,
 	}
+}
+
+// newNamedFailures returns the tests failing now that were not failing at
+// baseline. It returns nil (meaning "cannot compare by identity, use counts")
+// unless the after run parsed failure names and the baseline's failing set is
+// known — either names were recorded, or the baseline had zero failures.
+func newNamedFailures(before, after snapshot.TestSummary) []string {
+	if len(after.FailedNames) == 0 {
+		return nil
+	}
+	if before.Failed > 0 && len(before.FailedNames) == 0 {
+		// Old snapshot without names: identity of baseline failures unknown.
+		return nil
+	}
+	baseline := make(map[string]bool, len(before.FailedNames))
+	for _, name := range before.FailedNames {
+		baseline[name] = true
+	}
+	var fresh []string
+	for _, name := range after.FailedNames {
+		if !baseline[name] {
+			fresh = append(fresh, name)
+		}
+	}
+	return fresh
+}
+
+// joinNames renders up to max names, then "… and N more".
+func joinNames(names []string, max int) string {
+	if len(names) <= max {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s, … and %d more", strings.Join(names[:max], ", "), len(names)-max)
 }
 
 // classifySchemaChange determines the severity of a schema change based on

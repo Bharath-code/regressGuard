@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -418,5 +419,67 @@ func TestDiffSnapshots_cleanPass_zeroCounts(t *testing.T) {
 	}
 	if result.PassedRoutes != 1 {
 		t.Errorf("expected 1 passed route, got %d", result.PassedRoutes)
+	}
+}
+
+func TestDiffSnapshots_newNamedFailure_sameCount_critical(t *testing.T) {
+	before := makeSnap(41, 1, nil)
+	before.Tests.FailedNames = []string{"old flaky test"}
+	after := makeSnap(41, 1, nil)
+	after.Tests.FailedNames = []string{"rejects bad password"}
+
+	result := DiffSnapshots(before, after)
+	if !result.HasCritical {
+		t.Fatal("expected CRITICAL for new named failure with unchanged count")
+	}
+	found := false
+	for _, r := range result.Results {
+		if r.Type == TypeTests && r.Severity == SeverityCritical {
+			found = true
+			if !strings.Contains(r.Message, "rejects bad password") {
+				t.Errorf("finding should name the newly failing test, got %q", r.Message)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected a tests-type CRITICAL finding")
+	}
+}
+
+func TestDiffSnapshots_sameNamedFailures_noFinding(t *testing.T) {
+	before := makeSnap(41, 1, nil)
+	before.Tests.FailedNames = []string{"known failure"}
+	after := makeSnap(41, 1, nil)
+	after.Tests.FailedNames = []string{"known failure"}
+
+	result := DiffSnapshots(before, after)
+	for _, r := range result.Results {
+		if r.Type == TypeTests {
+			t.Errorf("expected no tests finding, got %+v", r)
+		}
+	}
+}
+
+func TestDiffSnapshots_oldSnapshotNoNames_fallsBackToCount(t *testing.T) {
+	// Baseline from an old rg version: failures recorded but no names.
+	before := makeSnap(41, 1, nil)
+	after := makeSnap(41, 1, nil)
+	after.Tests.FailedNames = []string{"rejects bad password"}
+
+	result := DiffSnapshots(before, after)
+	for _, r := range result.Results {
+		if r.Type == TypeTests {
+			t.Errorf("expected count-based fallback (no finding), got %+v", r)
+		}
+	}
+}
+
+func TestDiffSnapshots_countIncrease_namesUnparsed_stillCritical(t *testing.T) {
+	before := makeSnap(42, 0, nil)
+	after := makeSnap(41, 1, nil) // no names parsed
+
+	result := DiffSnapshots(before, after)
+	if !result.HasCritical {
+		t.Fatal("count increase without names must remain CRITICAL")
 	}
 }

@@ -33,6 +33,11 @@ type TestSummary struct {
 	Failed     int   `json:"failed"`
 	Skipped    int   `json:"skipped"`
 	DurationMs int64 `json:"durationMs"`
+	// FailedNames lists the failing tests by name when the runner output was
+	// parseable. Optional for backward compatibility: snapshots written before
+	// this field existed omit it, and the diff engine then falls back to
+	// count-based comparison.
+	FailedNames []string `json:"failedNames,omitempty"`
 }
 
 // RouteRecord holds the captured state for a single route.

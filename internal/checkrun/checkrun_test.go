@@ -946,3 +946,36 @@ func TestRun_autoServer_portConflictError(t *testing.T) {
 		t.Errorf("expected server start/ready error, got: %v", err)
 	}
 }
+
+func TestHintForFinding_routeMatchedFiles(t *testing.T) {
+	changed := []string{"app/api/users/route.ts", "internal/auth/session.go", "README.md"}
+	hint := hintForFinding("GET /api/users", changed)
+	if !strings.Contains(hint, "app/api/users/route.ts") {
+		t.Errorf("hint should include the route-related file, got %q", hint)
+	}
+	if strings.Contains(hint, "README.md") {
+		t.Errorf("hint should filter out unrelated files when matches exist, got %q", hint)
+	}
+}
+
+func TestHintForFinding_noMatchFallsBackToAll(t *testing.T) {
+	changed := []string{"lib/db.ts", "middleware.ts"}
+	hint := hintForFinding("GET /api/users", changed)
+	if !strings.Contains(hint, "lib/db.ts") || !strings.Contains(hint, "middleware.ts") {
+		t.Errorf("hint should fall back to full changed list, got %q", hint)
+	}
+}
+
+func TestHintForFinding_noChangedFiles(t *testing.T) {
+	if hint := hintForFinding("GET /api/users", nil); hint != "" {
+		t.Errorf("expected empty hint with no changed files, got %q", hint)
+	}
+}
+
+func TestHintForFinding_testFinding_noRoute(t *testing.T) {
+	changed := []string{"src/user.test.ts"}
+	hint := hintForFinding("", changed)
+	if !strings.Contains(hint, "src/user.test.ts") {
+		t.Errorf("route-less finding should still get the changed list, got %q", hint)
+	}
+}

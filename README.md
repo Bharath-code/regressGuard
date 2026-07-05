@@ -15,6 +15,10 @@ rg snapshot   # record the known-good state
 rg check      # compare after edits — see what broke
 ```
 
+![RegressGuard demo: an AI agent breaks an API contract, rg check blocks the commit and names the culprit file, the agent fixes it, check goes green](demo/demo.gif)
+
+*Break → detect → fix → green. Reproduce it yourself: `./demo/demo.sh`.*
+
 ---
 
 ## Install
@@ -266,7 +270,7 @@ Config lives in `.regressguard/config.json` (human-readable, git-ignoreable).
 
 These are deliberate trade-offs in v1 — favoring zero false positives over exhaustive detection. They are on the roadmap, not accidental:
 
-- **Test results are compared by count, not by identity.** `rg check` flags a CRITICAL only when the number of failing tests *increases*. If one test starts failing while a previously-failing test starts passing (net failure count unchanged), the regression is not detected. Pair `rg check` with your normal test runner in CI for per-test assertions.
+- **Test identity comparison is best-effort.** `rg check` records failing test *names* (jest, vitest, bun, go test output) and flags a CRITICAL when a test that passed at baseline starts failing — even if the net failure count is unchanged. When names cannot be parsed from your runner's output (or the baseline predates name recording), it falls back to count comparison: a CRITICAL only when the number of failing tests *increases*. Pair `rg check` with your normal test runner in CI for exhaustive per-test assertions.
 - **Array schemas are inferred from the first element.** The schema normalizer represents a JSON array's shape using its first element. If later elements have a different shape (heterogeneous arrays), that divergence is not reflected in the schema hash and will not be flagged.
 
 ---

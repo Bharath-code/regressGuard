@@ -125,10 +125,11 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 	snap.Tests = snapshot.TestSummary{
-		Passed:     testResult.Passed,
-		Failed:     testResult.Failed,
-		Skipped:    testResult.Skipped,
-		DurationMs: testResult.Duration.Milliseconds(),
+		Passed:      testResult.Passed,
+		Failed:      testResult.Failed,
+		Skipped:     testResult.Skipped,
+		DurationMs:  testResult.Duration.Milliseconds(),
+		FailedNames: testResult.FailedTests,
 	}
 
 	// E3-T3 / E3-T4: discover routes and hit them.
