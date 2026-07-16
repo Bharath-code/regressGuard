@@ -1,5 +1,9 @@
 # RegressGuard
 
+[![Release](https://img.shields.io/github/v/release/Bharath-code/regressguard)](https://github.com/Bharath-code/regressguard/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go)](go.mod)
+
 **Before you commit, know what broke.**
 
 When an AI coding agent edits your app it can silently break an API contract — a removed field, a changed status code, a test that now fails — and still report success. RegressGuard records a known-good baseline and tells you (or the agent) exactly what regressed.
@@ -209,14 +213,19 @@ A typical loop: the agent edits code → calls `check` → reads the structured 
 | Command | Purpose |
 |---|---|
 | `rg init` | Configure RegressGuard for this project |
+| `rg quickstart` | Auto-configure and snapshot in one command |
 | `rg snapshot` | Record the current passing state |
 | `rg check` | Compare current state against the snapshot |
+| `rg status` | Sub-second health check (snapshot age, routes, hook) — no tests run |
+| `rg explain <route>` | Show before/after diff for a specific route |
+| `rg watch` | Watch files and auto-run check on changes |
 | `rg mcp serve` | Run the MCP server so AI agents can self-verify (see above) |
 | `rg hook install` | Install the pre-commit git hook |
 | `rg hook uninstall` | Remove the git hook |
 | `rg config get <key>` | Read a config value |
 | `rg config set <key> <value>` | Write a config value |
 | `rg doctor` | Diagnose setup issues |
+| `rg upgrade` | Update rg to the latest version |
 | `rg completion <shell>` | Generate shell autocompletions (bash, zsh, fish) |
 | `rg version` | Print version and build metadata |
 
@@ -304,6 +313,16 @@ rg check --json --verbose
 NO_COLOR=1 rg check
 ```
 
+**GitHub Action** — runs `rg check` on every PR and comments the findings:
+
+```yaml
+- uses: Bharath-code/regressguard@v0
+  with:
+    server-command: npm run dev
+```
+
+See [`action.yml`](action.yml) for all inputs (version pinning, working directory, server URL).
+
 ---
 
 ## Supported stacks (v1)
@@ -329,6 +348,12 @@ This repo — the CLI and MCP server — is free and MIT, forever. A hosted team
 (cross-repo dashboard, history retention, compliance export) is scoped in
 [`docs/paid-layer-spec.md`](docs/paid-layer-spec.md). Anything that runs on one machine for
 one repo stays free; the paid layer is strictly additive.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 
