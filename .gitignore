@@ -2,3 +2,4 @@ bin/
 .regressguard/
 fixtures/
 /rg
+dist/
