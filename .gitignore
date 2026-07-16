@@ -1,3 +1,4 @@
 bin/
 .regressguard/
 fixtures/
+/rg
