@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -219,5 +220,36 @@ func TestHitRoutes_preservesOrder(t *testing.T) {
 		if results[i].Path != want {
 			t.Errorf("result[%d].Path = %q, want %q", i, results[i].Path, want)
 		}
+	}
+}
+
+func TestServerReachable_recoveringAfterStall(t *testing.T) {
+	// Simulates a dev server mid-hot-reload: the first two requests stall past
+	// the probe timeout, then the server recovers. ServerReachable must retry
+	// through the stall instead of reporting the server down.
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) <= 2 {
+			time.Sleep(700 * time.Millisecond) // exceeds serverProbeTimeout
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if !ServerReachable(srv.URL) {
+		t.Fatal("ServerReachable = false for a server that recovered mid-probe")
+	}
+}
+
+func TestServerReachable_downServerFailsFast(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv.Close() // nothing listening: connection refused, no timeout burned
+
+	start := time.Now()
+	if ServerReachable(srv.URL) {
+		t.Fatal("ServerReachable = true for a closed server")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("down-server probe took %v, want fast refusal", elapsed)
 	}
 }

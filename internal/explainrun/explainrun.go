@@ -109,7 +109,7 @@ func Run(opts Options) (Result, error) {
 	if !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
 			Title:       "rg explain failed: dev server is not responding.",
-			Cause:       "The server at " + cfg.ServerURL + " did not respond within 500ms.",
+			Cause:       "The server at " + cfg.ServerURL + " did not respond after several attempts.",
 			Next:        "npm run dev",
 			MoreContext: "rg doctor",
 		}

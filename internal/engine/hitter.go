@@ -16,6 +16,8 @@ import (
 const (
 	defaultRouteTimeout  = 10 * time.Second
 	serverProbeTimeout   = 500 * time.Millisecond
+	serverProbeAttempts  = 6
+	serverProbeGap       = 100 * time.Millisecond
 	maxBodyBytes         = 1 << 20 // 1 MB
 )
 
@@ -55,8 +57,11 @@ type HitOptions struct {
 	OnRouteComplete func(index int, result RouteResult)
 }
 
-// ServerReachable probes the server URL with a short timeout.
-// Returns false within 500ms if the server is not responding.
+// ServerReachable probes the server URL, retrying briefly so a dev server
+// mid-hot-reload (e.g. Next.js recompiling right after an agent edits a file)
+// is not misreported as down. A truly unreachable server still fails fast:
+// connection refusals return immediately, so the worst case is dominated by
+// the ~3.5s retry window only when something is listening but stalled.
 // This is used by rg check to fail fast instead of timing out per-route.
 func ServerReachable(serverURL string) bool {
 	client := &http.Client{Timeout: serverProbeTimeout}
@@ -65,12 +70,17 @@ func ServerReachable(serverURL string) bool {
 	if err != nil {
 		return false
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
+	for attempt := range serverProbeAttempts {
+		if attempt > 0 {
+			time.Sleep(serverProbeGap)
+		}
+		resp, err := client.Do(req)
+		if err == nil {
+			resp.Body.Close()
+			return true
+		}
 	}
-	resp.Body.Close()
-	return true
+	return false
 }
 
 // HitRoutes calls each non-skipped route in the config and returns results.
