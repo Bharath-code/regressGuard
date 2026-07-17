@@ -321,6 +321,12 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 	// Routes line — show warning if server was down.
 	if serverDown {
 		lines = append(lines, ui.ResultLine(stdout, "warn", "Routes", "Dev server not responding — routes skipped"))
+	} else if captured == 0 {
+		routeDetail := "0 captured — API contract not protected. Add routes to .regressguard/config.json"
+		if skipped > 0 {
+			routeDetail = fmt.Sprintf("0 captured, %d skipped — API contract not protected. Add routes to .regressguard/config.json", skipped)
+		}
+		lines = append(lines, ui.ResultLine(stdout, "warn", "Routes", routeDetail))
 	} else {
 		routeDetail := fmt.Sprintf("%d captured", captured)
 		if skipped > 0 {

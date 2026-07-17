@@ -173,6 +173,45 @@ func TestRun_passScreen(t *testing.T) {
 	}
 }
 
+// A passing check against a zero-route snapshot must warn that no API contract
+// is being verified instead of implying full coverage.
+func TestRun_passScreen_zeroRoutesWarns(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 5, 0)
+
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+	}
+	writeCfg(t, dir, cfg)
+
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 5, Failed: 0},
+		Routes:    map[string]snapshot.RouteRecord{},
+	})
+
+	var stdout, stderr bytes.Buffer
+	result, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "pass" {
+		t.Fatalf("expected pass, got %s\nOutput:\n%s", result.Status, stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "API contract not protected") {
+		t.Errorf("zero-route pass screen missing unprotected warning\nGot:\n%s", stdout.String())
+	}
+}
+
 // P0-1: a transient route failure during check (timeout/connection drop) must
 // surface as a non-blocking WARNING, never block the commit as CRITICAL.
 func TestRun_transientRouteError_notCritical(t *testing.T) {

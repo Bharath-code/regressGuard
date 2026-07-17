@@ -175,6 +175,38 @@ func TestRun_humanOutput(t *testing.T) {
 	}
 }
 
+// A snapshot with zero routes must warn that the API contract is unprotected,
+// not render a green "0 captured" line.
+func TestRun_zeroRoutesWarns(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 3, 0)
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	_, err := Run(Options{ProjectRoot: dir, Stdout: &stdout})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := stdout.String()
+	if !strings.Contains(out, "API contract not protected") {
+		t.Errorf("zero-route snapshot missing unprotected warning\nGot:\n%s", out)
+	}
+}
+
 // TestRun_jsonOutput verifies E3-T8: --json produces parseable JSON on stdout only.
 func TestRun_jsonOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

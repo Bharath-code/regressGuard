@@ -595,6 +595,14 @@ func writeHuman(stdout, stderr io.Writer, result Result, diff engine.DiffResult,
 	}
 }
 
+// routesLine warns when the snapshot holds no routes: tests still pass, but no API contract is being checked.
+func routesLine(stdout io.Writer, result Result, before snapshot.Snapshot) string {
+	if len(before.Routes) == 0 {
+		return ui.ResultLine(stdout, "warn", "Routes", "0 in snapshot — API contract not protected. Add routes to .regressguard/config.json")
+	}
+	return ui.ResultLine(stdout, "pass", "Routes", fmt.Sprintf("%d unchanged", result.Summary.Passed))
+}
+
 // writeHumanPass renders Flow E — clean check with styled banner and celebration.
 func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snapshot, elapsed time.Duration, streak int, projectRoot string) error {
 	isTTY := ui.ColorEnabled(stdout)
@@ -614,7 +622,7 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 		header,
 		"",
 		ui.ResultLine(stdout, "pass", "Tests", fmt.Sprintf("%d passed, %d failed", after.Tests.Passed, after.Tests.Failed)),
-		ui.ResultLine(stdout, "pass", "Routes", fmt.Sprintf("%d unchanged", result.Summary.Passed)),
+		routesLine(stdout, result, before),
 		ui.ResultLine(stdout, "pass", "Timing", "within tolerance"),
 		"",
 		ui.Separator(stdout),
