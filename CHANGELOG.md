@@ -6,6 +6,13 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `rg snapshot` and `rg check` rendered a green "0 captured"/"0 unchanged"
+  routes line on a zero-route snapshot, implying the API contract was
+  protected when nothing was actually being checked. Now warns explicitly
+  ("API contract not protected") on unsupported/uncaptured stacks.
+
 ## [0.1.0] — 2026-07-16
 
 First public release.
