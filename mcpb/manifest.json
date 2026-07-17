@@ -1,0 +1,28 @@
+{
+  "manifest_version": "0.3",
+  "name": "regressguard",
+  "display_name": "RegressGuard",
+  "version": "0.1.0",
+  "description": "Deterministic API regression verification for AI coding agents: snapshot a known-good baseline, check edits for broken contracts with repair hints.",
+  "author": {
+    "name": "Bharath Kumar",
+    "url": "https://github.com/Bharath-code"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bharath-code/regressGuard.git"
+  },
+  "license": "MIT",
+  "keywords": ["api", "regression", "testing", "verification", "snapshot"],
+  "server": {
+    "type": "binary",
+    "entry_point": "run.sh",
+    "mcp_config": {
+      "command": "/bin/sh",
+      "args": ["${__dirname}/run.sh"]
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux"]
+  }
+}

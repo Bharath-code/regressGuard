@@ -107,7 +107,17 @@ internal/
 ## Release & MCP Registry Publish
 
 The server is listed on the official MCP registry as `io.github.Bharath-code/regressguard`
-(namespace is case-sensitive, must match the GitHub username). For every release:
+(namespace is case-sensitive, must match the GitHub username).
+
+**Automated:** pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs
+tests, GoReleaser (GitHub release + tarballs), builds the MCPB bundle from
+`mcpb/manifest.json` + `mcpb/run.sh`, smoke-tests it, uploads `regressguard.mcpb`,
+rewrites `server.json` (version/identifier/fileSha256) in the workspace, and publishes
+to the registry via OIDC (`mcp-publisher login github-oidc`). To release:
+`git tag vX.Y.Z && git push origin vX.Y.Z`. The committed `server.json` is a template;
+CI stamps the release values at publish time.
+
+**Manual fallback** (if CI is unavailable):
 
 1. Build/upload platform tarballs to the GitHub release (existing flow).
 2. Rebuild the MCPB bundle: extract the 4 binaries (darwin/linux × amd64/arm64) into

@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # goreleaser release + mcpb asset upload
+  id-token: write # MCP registry OIDC auth
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test -short ./...
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build MCPB bundle
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p bundle/bin
+          for t in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
+            tar xzf "dist/rg_${VERSION}_${t}.tar.gz" -C bundle/bin rg
+            mv bundle/bin/rg "bundle/bin/rg-${t/_/-}"
+          done
+          cp mcpb/run.sh bundle/run.sh
+          jq --arg v "$VERSION" '.version = $v' mcpb/manifest.json > bundle/manifest.json
+          npx -y @anthropic-ai/mcpb pack bundle regressguard.mcpb
+
+      - name: Smoke-test MCPB launcher
+        run: |
+          printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}\n' \
+            | sh bundle/run.sh | grep -q '"serverInfo"'
+
+      - name: Upload MCPB to release
+        run: gh release upload "$GITHUB_REF_NAME" regressguard.mcpb --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update server.json for this release
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          SHA=$(openssl dgst -sha256 -r regressguard.mcpb | cut -d' ' -f1)
+          URL="https://github.com/Bharath-code/regressGuard/releases/download/${GITHUB_REF_NAME}/regressguard.mcpb"
+          jq --arg v "$VERSION" --arg url "$URL" --arg sha "$SHA" \
+            '.version = $v | .packages[0].identifier = $url | .packages[0].fileSha256 = $sha' \
+            server.json > server.tmp && mv server.tmp server.json
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
