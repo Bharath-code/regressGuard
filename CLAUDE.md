@@ -42,6 +42,11 @@ verification via MCP**. Gated on three conditions before growth spend:
 Dynamic keys (16) + ISO-8601/UUID/JWT patterns are stripped before hashing to prevent
 false positives — this is the core trust mechanism; do not weaken it without tests.
 
+## Releases
+Published on the official MCP registry as `io.github.Bharath-code/regressguard` (v0.1.0,
+2026-07-17). Every release must also rebuild/upload the `.mcpb` bundle and republish —
+follow "Release & MCP Registry Publish" in `AGENTS.md`.
+
 ## Working agreement
 - Single task in scope at a time (AGENTS.md workflow). Verify acceptance criteria before
   marking done. `go test ./...` must stay green; gate slow tests under `-short`.

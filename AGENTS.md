@@ -104,6 +104,28 @@ internal/
 - Slow tests (>5s) should be gated with `if testing.Short() { t.Skip(...) }`.
 - Run `go test -short ./...` for fast iteration; full suite for CI.
 
+## Release & MCP Registry Publish
+
+The server is listed on the official MCP registry as `io.github.Bharath-code/regressguard`
+(namespace is case-sensitive, must match the GitHub username). For every release:
+
+1. Build/upload platform tarballs to the GitHub release (existing flow).
+2. Rebuild the MCPB bundle: extract the 4 binaries (darwin/linux × amd64/arm64) into
+   `bundle/bin/rg-<os>-<arch>`, alongside `run.sh` (uname-based binary picker that execs
+   `rg mcp serve`) and `manifest.json` (MCPB spec 0.3, `server.type: binary`,
+   command `/bin/sh ${__dirname}/run.sh`). Bump `version` in `manifest.json`.
+3. Pack + validate: `npx -y @anthropic-ai/mcpb pack bundle regressguard.mcpb`.
+4. Smoke test: pipe an MCP `initialize` request into `sh bundle/run.sh`, expect a JSON-RPC result.
+5. Upload: `gh release upload v<X.Y.Z> regressguard.mcpb`.
+6. Update `server.json`: bump both `version` fields, set `identifier` to the new
+   `releases/download/v<X.Y.Z>/regressguard.mcpb` URL, set `fileSha256` from
+   `openssl dgst -sha256 regressguard.mcpb`. Constraint: `description` <= 100 chars.
+7. Publish: `mcp-publisher login github` (device flow) then `mcp-publisher publish`.
+   Verify: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=regressguard"`.
+
+CI alternative: GitHub Actions OIDC auth removes the device-code step
+(registry repo: `docs/modelcontextprotocol-io/github-actions.mdx`).
+
 ## Scope Control
 
 v1 is focused on Next.js/TypeScript API regression safety.
