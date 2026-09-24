@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,7 +29,6 @@ func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {
 		Yes:         true,
 		Stdout:      &stdout,
 		Stderr:      bytes.NewBuffer(nil),
-		HTTPClient:  server.Client(),
 		Interactive: false,
 	})
 	if err != nil {
@@ -56,6 +54,9 @@ func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {
 }
 
 func TestRunNonInteractiveRequiresServerURLWhenDefaultUnreachable(t *testing.T) {
+	if serverReachable(DefaultServerURL) {
+		t.Skip("something is listening on " + DefaultServerURL)
+	}
 	root := t.TempDir()
 	writeProject(t, root)
 
@@ -89,7 +90,6 @@ func TestRunInteractivePromptsForServerURL(t *testing.T) {
 		Stdin:            strings.NewReader(server.URL + "\n"),
 		Stdout:           &stdout,
 		Stderr:           bytes.NewBuffer(nil),
-		HTTPClient:       server.Client(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -171,19 +171,21 @@ func writeProject(t *testing.T, root string) {
 	}
 }
 
-// A fresh Next dev server compiles on the first request and can stall past the
-// probe timeout; init must retry like check does instead of reporting it down.
-func TestServerReachable_retriesThroughFirstRequestStall(t *testing.T) {
-	var hits atomic.Int32
+// A cold Next dev server accepts connections but compiles "/" for seconds
+// before answering; init must count a listening server as reachable.
+func TestServerReachable_listeningButSlowToRespond(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hits.Add(1) == 1 {
-			time.Sleep(1200 * time.Millisecond)
-		}
-		w.WriteHeader(http.StatusNotFound)
+		time.Sleep(5 * time.Second)
 	}))
 	defer server.Close()
 
-	if !serverReachable(server.Client(), server.URL) {
-		t.Fatal("expected reachable after first-request stall")
+	if !serverReachable(server.URL) {
+		t.Fatal("expected a listening server to be reachable")
+	}
+}
+
+func TestServerReachable_nothingListening(t *testing.T) {
+	if serverReachable("http://127.0.0.1:1") {
+		t.Fatal("expected unreachable when nothing listens")
 	}
 }

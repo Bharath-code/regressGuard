@@ -23,9 +23,9 @@ versioning follows [SemVer](https://semver.org/).
 - Repair hints could point at the wrong files: changed files were cut to the
   first 5 *before* route matching, so in larger diffs the culprit was dropped.
   Now filters first, then caps the display (`+N more`).
-- `rg init` reported a freshly started Next.js dev server as unreachable: its
-  single 800ms probe hit the first-request compile stall. Now retries, like
-  `rg check` already did.
+- `rg init` reported a running Next.js dev server as unreachable: it issued a
+  `GET /`, which a cold dev server answers only after compiling the page
+  (seconds on CI). Now checks for a listening TCP port instead.
 
 ### Added
 

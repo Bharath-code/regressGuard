@@ -1,11 +1,11 @@
 package initrun
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +34,6 @@ type Options struct {
 	Stdout           io.Writer
 	Stderr           io.Writer
 	Stdin            io.Reader
-	HTTPClient       *http.Client
 }
 
 type Result struct {
@@ -63,9 +62,9 @@ func Run(opts Options) (Result, error) {
 	serverURL := strings.TrimSpace(opts.ServerURL)
 	reachable := false
 	if serverURL != "" {
-		reachable = serverReachable(opts.HTTPClient, serverURL)
+		reachable = serverReachable(serverURL)
 	} else {
-		reachable = serverReachable(opts.HTTPClient, DefaultServerURL)
+		reachable = serverReachable(DefaultServerURL)
 		if reachable {
 			serverURL = DefaultServerURL
 		}
@@ -92,7 +91,7 @@ func Run(opts Options) (Result, error) {
 			if serverURL == "" {
 				serverURL = DefaultServerURL
 			}
-			reachable = serverReachable(opts.HTTPClient, serverURL)
+			reachable = serverReachable(serverURL)
 		}
 
 		// Show auth mode selection in interactive mode.
@@ -297,9 +296,6 @@ func withDefaults(opts Options) Options {
 	if opts.Stdin == nil {
 		opts.Stdin = os.Stdin
 	}
-	if opts.HTTPClient == nil {
-		opts.HTTPClient = &http.Client{Timeout: 700 * time.Millisecond}
-	}
 	if opts.ForceInteractive {
 		opts.Interactive = true
 	}
@@ -385,33 +381,28 @@ func prompt(opts Options, label string) (string, error) {
 	return strings.TrimSpace(string(buf[:n])), nil
 }
 
-// serverReachable retries because a fresh dev server (Next.js) compiles on the
-// first request and can stall past a single probe's timeout.
-func serverReachable(client *http.Client, rawURL string) bool {
-	for attempt := range 4 {
-		if attempt > 0 {
-			time.Sleep(200 * time.Millisecond)
-		}
-		if probeOnce(client, rawURL) {
-			return true
-		}
+// serverReachable reports whether anything is listening at rawURL. It dials
+// TCP instead of issuing a GET: a cold Next.js dev server accepts the
+// connection but can compile "/" for seconds before answering.
+func serverReachable(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return false
 	}
-	return false
-}
-
-func probeOnce(client *http.Client, rawURL string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	host := u.Host
+	if u.Port() == "" {
+		port := "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+		host = net.JoinHostPort(u.Hostname(), port)
+	}
+	conn, err := net.DialTimeout("tcp", host, 800*time.Millisecond)
 	if err != nil {
 		return false
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	_ = resp.Body.Close()
-	return resp.StatusCode < 500
+	_ = conn.Close()
+	return true
 }
 
 func convertRoutes(routes []scanner.Route) []config.Route {
