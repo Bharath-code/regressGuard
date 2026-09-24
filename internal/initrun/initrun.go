@@ -385,7 +385,21 @@ func prompt(opts Options, label string) (string, error) {
 	return strings.TrimSpace(string(buf[:n])), nil
 }
 
+// serverReachable retries because a fresh dev server (Next.js) compiles on the
+// first request and can stall past a single probe's timeout.
 func serverReachable(client *http.Client, rawURL string) bool {
+	for attempt := range 4 {
+		if attempt > 0 {
+			time.Sleep(200 * time.Millisecond)
+		}
+		if probeOnce(client, rawURL) {
+			return true
+		}
+	}
+	return false
+}
+
+func probeOnce(client *http.Client, rawURL string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)

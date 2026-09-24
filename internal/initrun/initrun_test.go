@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
 )
@@ -166,5 +168,22 @@ func writeProject(t *testing.T, root string) {
 	}
 	if err := os.WriteFile(routePath, []byte(`export async function GET() {}`), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A fresh Next dev server compiles on the first request and can stall past the
+// probe timeout; init must retry like check does instead of reporting it down.
+func TestServerReachable_retriesThroughFirstRequestStall(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) == 1 {
+			time.Sleep(1200 * time.Millisecond)
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	if !serverReachable(server.Client(), server.URL) {
+		t.Fatal("expected reachable after first-request stall")
 	}
 }

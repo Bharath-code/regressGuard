@@ -503,9 +503,17 @@ func gitChangedFiles(root, sinceCommit string) []string {
 		if l != "" {
 			files = append(files, l)
 		}
-		if len(files) == 5 {
-			break
-		}
+	}
+	return files
+}
+
+// maxShownFiles caps changed-file lists in hints and human output. Callers
+// must filter before capping, or the culprit can be cut off.
+const maxShownFiles = 5
+
+func capFiles(files []string) []string {
+	if len(files) > maxShownFiles {
+		return files[:maxShownFiles]
 	}
 	return files
 }
@@ -523,7 +531,7 @@ func hintForFinding(route string, changedFiles []string) string {
 	if len(matches) == 0 {
 		matches = changedFiles
 	}
-	return "changed since snapshot: " + strings.Join(matches, ", ")
+	return "changed since snapshot: " + strings.Join(capFiles(matches), ", ")
 }
 
 // routeRelatedFiles returns changed files whose path contains one of the
@@ -766,8 +774,11 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 
 	if len(gitFiles) > 0 {
 		footerLines = append(footerLines, "", paint(stdout, ui.ColorMuted, "Changed files since snapshot:"))
-		for _, f := range gitFiles {
+		for _, f := range capFiles(gitFiles) {
 			footerLines = append(footerLines, "  "+paint(stdout, ui.ColorMuted, f))
+		}
+		if extra := len(gitFiles) - maxShownFiles; extra > 0 {
+			footerLines = append(footerLines, "  "+paint(stdout, ui.ColorMuted, fmt.Sprintf("+%d more", extra)))
 		}
 	}
 

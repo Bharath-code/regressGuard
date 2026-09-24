@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1016,5 +1017,36 @@ func TestHintForFinding_testFinding_noRoute(t *testing.T) {
 	hint := hintForFinding("", changed)
 	if !strings.Contains(hint, "src/user.test.ts") {
 		t.Errorf("route-less finding should still get the changed list, got %q", hint)
+	}
+}
+
+// The culprit must survive filtering even when it is not among the first few
+// changed files: truncating before route-matching dropped it from the hint.
+func TestHint_culpritBeyondFirstFiveChangedFiles(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	files := []string{"a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "zz/api/profile/route.ts"}
+	for _, f := range files {
+		p := filepath.Join(dir, f)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		_ = os.WriteFile(p, []byte("v1"), 0o644)
+	}
+	git("init", "-q")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+	base, _ := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	for _, f := range files {
+		_ = os.WriteFile(filepath.Join(dir, f), []byte("v2"), 0o644)
+	}
+
+	hint := hintForFinding("GET /api/profile", gitChangedFiles(dir, strings.TrimSpace(string(base))))
+	if !strings.Contains(hint, "zz/api/profile/route.ts") {
+		t.Errorf("hint lost the culprit file, got %q", hint)
 	}
 }
