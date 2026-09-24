@@ -16,12 +16,19 @@ trap cleanup EXIT
 
 if ! curl -sf -m 2 http://localhost:3000/api/health > /dev/null; then
   echo "Starting fixture dev server..."
-  npm run dev > /dev/null 2>&1 &
+  DEV_LOG="$(mktemp)"
+  npm run dev > "$DEV_LOG" 2>&1 &
   DEV_PID=$!
-  for _ in $(seq 1 30); do
-    curl -sf -m 2 http://localhost:3000/api/health > /dev/null && break
+  up=""
+  for _ in $(seq 1 90); do
+    curl -sf -m 2 http://localhost:3000/api/health > /dev/null && { up=1; break; }
     sleep 1
   done
+  if [ -z "$up" ]; then
+    echo "FAIL: dev server did not come up in 90s. Log:" >&2
+    cat "$DEV_LOG" >&2
+    exit 1
+  fi
   # Warm the lazily-compiled routes so the snapshot probe doesn't time out.
   for p in profile users auth/verify; do curl -sf "http://localhost:3000/api/$p" > /dev/null || true; done
 fi
