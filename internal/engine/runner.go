@@ -41,6 +41,10 @@ var (
 	// "✗ name" (bun). Trailing duration is stripped.
 	reFailName = regexp.MustCompile(`^\s*[✕✗×]\s+(.+?)(?:\s+\(?\d+(?:\.\d+)?\s*m?s\)?)?\s*$`)
 	reGoFail   = regexp.MustCompile(`^--- FAIL: (\S+)`)
+	// Vitest non-TTY: " FAIL  file > suite > name". Requiring " > " skips jest's
+	// file-level "FAIL src/x.test.js" and vitest's file-level import failures.
+	reViFailBlock = regexp.MustCompile(`^\s*FAIL\s+(\S+ > .+?)\s*$`)
+	reANSI        = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 )
 
 // RunTests executes the configured test command and returns a TestResult.
@@ -151,8 +155,12 @@ func parseFailedTestNames(output string) []string {
 	}
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := reANSI.ReplaceAllString(scanner.Text(), "")
 		if m := reGoFail.FindStringSubmatch(line); m != nil {
+			add(m[1])
+			continue
+		}
+		if m := reViFailBlock.FindStringSubmatch(line); m != nil {
 			add(m[1])
 			continue
 		}

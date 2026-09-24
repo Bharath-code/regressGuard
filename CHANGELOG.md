@@ -12,6 +12,14 @@ versioning follows [SemVer](https://semver.org/).
   routes line on a zero-route snapshot, implying the API contract was
   protected when nothing was actually being checked. Now warns explicitly
   ("API contract not protected") on unsupported/uncaptured stacks.
+- Per-test failure identity never fired for vitest: real vitest output uses
+  colored `FAIL file > suite > name` lines, not `×` markers. Findings now name
+  the newly failing test instead of "1 new failure(s)".
+- `rg snapshot` with the dev server down overwrote a baseline of N routes with
+  0 routes and exited 0. It now refuses (exit 2) when a routed baseline exists.
+- Claude Code plugin ran bare `rg`, which resolves to ripgrep on most machines,
+  so the MCP server never connected. Plugin now runs `regressguard`;
+  `install.sh` installs that alias next to `rg`.
 
 ## [0.1.0] — 2026-07-16
 
