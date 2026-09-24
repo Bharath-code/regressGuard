@@ -20,6 +20,12 @@ versioning follows [SemVer](https://semver.org/).
 - Claude Code plugin ran bare `rg`, which resolves to ripgrep on most machines,
   so the MCP server never connected. Plugin now runs `regressguard`;
   `install.sh` installs that alias next to `rg`.
+- Repair hints could point at the wrong files: changed files were cut to the
+  first 5 *before* route matching, so in larger diffs the culprit was dropped.
+  Now filters first, then caps the display (`+N more`).
+- `rg init` reported a freshly started Next.js dev server as unreachable: its
+  single 800ms probe hit the first-request compile stall. Now retries, like
+  `rg check` already did.
 
 ### Added
 
