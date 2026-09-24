@@ -19,16 +19,6 @@ func makeSnap(passed, failed int, routes map[string]snapshot.RouteRecord) snapsh
 	}
 }
 
-func routeRecord(status int, hash string, ms int64) snapshot.RouteRecord {
-	return snapshot.RouteRecord{
-		Method:     "GET",
-		Path:       "/api/test",
-		Status:     status,
-		SchemaHash: hash,
-		MS:         ms,
-	}
-}
-
 // E4-T3: test diff
 
 func TestDiffSnapshots_testRegression_critical(t *testing.T) {
@@ -219,7 +209,7 @@ func TestDiffSnapshots_schemaAddedRoute_notCountedAsPassed(t *testing.T) {
 	before := makeSnap(5, 0, map[string]snapshot.RouteRecord{
 		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "aaaahash-before123", MS: 40,
 			NormalizedSchema: []byte(`{"name":"string"}`)},
-		clean:  {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "bbbbhash-stable456", MS: 30},
+		clean: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "bbbbhash-stable456", MS: 30},
 	})
 	after := makeSnap(5, 0, map[string]snapshot.RouteRecord{
 		warned: {Method: "GET", Path: "/api/profile", Status: 200, SchemaHash: "cccchash-after789", MS: 40,

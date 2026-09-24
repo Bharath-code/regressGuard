@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	defaultRouteTimeout  = 10 * time.Second
-	serverProbeTimeout   = 500 * time.Millisecond
-	serverProbeAttempts  = 6
-	serverProbeGap       = 100 * time.Millisecond
-	maxBodyBytes         = 1 << 20 // 1 MB
+	defaultRouteTimeout = 10 * time.Second
+	serverProbeTimeout  = 500 * time.Millisecond
+	serverProbeAttempts = 6
+	serverProbeGap      = 100 * time.Millisecond
+	maxBodyBytes        = 1 << 20 // 1 MB
 )
 
 // RouteResult holds the outcome of hitting a single route.

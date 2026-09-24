@@ -31,11 +31,6 @@ var (
 				Padding(0, 2).
 				Bold(true)
 
-	// headerStyle for section headers.
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FFFFFF"))
-
 	// successCheckStyle for the celebration checkmark.
 	successCheckStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#2DA44E")).

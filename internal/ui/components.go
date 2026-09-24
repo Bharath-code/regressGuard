@@ -13,11 +13,6 @@ import (
 // Every command uses these for consistent Stripe-level presentation.
 
 var (
-	// headerBarStyle is the branded header shown at the top of every command.
-	headerBarStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.AdaptiveColor{Light: "#1F2328", Dark: "#E6EDF3"})
-
 	// separatorStyle is for dim horizontal rules between sections.
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#30363D"))

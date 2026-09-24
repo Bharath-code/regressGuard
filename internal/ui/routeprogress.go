@@ -20,9 +20,6 @@ var (
 			Foreground(lipgloss.AdaptiveColor{Light: "#383838", Dark: "#CCCCCC"}).
 			Width(30)
 
-	routePendingStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#6E7781"))
-
 	routeDoneCodeStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#2DA44E")).
 				Bold(true)

@@ -6,7 +6,6 @@ package doctorrun
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -215,17 +214,6 @@ func timeSince(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
-}
-
-// ServerReachable is a quick check used by doctor.
-func serverReachable(url string) bool {
-	client := &http.Client{Timeout: 500 * time.Millisecond}
-	resp, err := client.Get(url)
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return true
 }
 
 func withDefaults(opts Options) Options {

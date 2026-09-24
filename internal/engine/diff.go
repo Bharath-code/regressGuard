@@ -30,10 +30,10 @@ type CheckResult struct {
 	Severity string `json:"severity"`
 	Type     string `json:"type"`
 	// Route is the canonical "METHOD /path" key, empty for test-level findings.
-	Route        string        `json:"route,omitempty"`
-	Before       any           `json:"before,omitempty"`
-	After        any           `json:"after,omitempty"`
-	Message      string        `json:"message"`
+	Route   string `json:"route,omitempty"`
+	Before  any    `json:"before,omitempty"`
+	After   any    `json:"after,omitempty"`
+	Message string `json:"message"`
 	// FieldChanges is populated for schema-type findings when both snapshots
 	// store the normalized shape. Nil for status/timing/test findings.
 	FieldChanges []FieldChange `json:"fieldChanges,omitempty"`

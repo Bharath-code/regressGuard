@@ -555,38 +555,6 @@ func stubCommand(use, short, example string) *cobra.Command {
 	return cmd
 }
 
-func jsonAwareStub(name, nextCommand string) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		jsonMode, _ := cmd.Flags().GetBool("json")
-		verbose, _ := cmd.Flags().GetBool("verbose")
-
-		if verbose {
-			if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "INFO %s engine not implemented yet.\n", name); err != nil {
-				return err
-			}
-		}
-
-		if jsonMode {
-			payload := map[string]any{
-				"status": "not_implemented",
-				"summary": map[string]int{
-					"critical": 0,
-					"warnings": 0,
-					"passed":   0,
-				},
-				"results": []any{},
-				"next":    nextCommand,
-			}
-			encoder := json.NewEncoder(cmd.OutOrStdout())
-			encoder.SetIndent("", "  ")
-			return encoder.Encode(payload)
-		}
-
-		_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s is not implemented yet.\n\nNext:\n  %s\n", name, nextCommand)
-		return err
-	}
-}
-
 type silentError struct{}
 
 func (silentError) Error() string { return "" }
