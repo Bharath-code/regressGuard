@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/engine"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/scanner"
@@ -62,9 +60,9 @@ func Run(opts Options) (Result, error) {
 	serverURL := strings.TrimSpace(opts.ServerURL)
 	reachable := false
 	if serverURL != "" {
-		reachable = serverReachable(serverURL)
+		reachable = engine.ServerReachable(serverURL)
 	} else {
-		reachable = serverReachable(DefaultServerURL)
+		reachable = engine.ServerReachable(DefaultServerURL)
 		if reachable {
 			serverURL = DefaultServerURL
 		}
@@ -91,7 +89,7 @@ func Run(opts Options) (Result, error) {
 			if serverURL == "" {
 				serverURL = DefaultServerURL
 			}
-			reachable = serverReachable(serverURL)
+			reachable = engine.ServerReachable(serverURL)
 		}
 
 		// Show auth mode selection in interactive mode.
@@ -379,30 +377,6 @@ func prompt(opts Options, label string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(buf[:n])), nil
-}
-
-// serverReachable reports whether anything is listening at rawURL. It dials
-// TCP instead of issuing a GET: a cold Next.js dev server accepts the
-// connection but can compile "/" for seconds before answering.
-func serverReachable(rawURL string) bool {
-	u, err := url.Parse(rawURL)
-	if err != nil || u.Host == "" {
-		return false
-	}
-	host := u.Host
-	if u.Port() == "" {
-		port := "80"
-		if u.Scheme == "https" {
-			port = "443"
-		}
-		host = net.JoinHostPort(u.Hostname(), port)
-	}
-	conn, err := net.DialTimeout("tcp", host, 800*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
 }
 
 func convertRoutes(routes []scanner.Route) []config.Route {

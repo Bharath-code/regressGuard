@@ -253,3 +253,16 @@ func TestServerReachable_downServerFailsFast(t *testing.T) {
 		t.Fatalf("down-server probe took %v, want fast refusal", elapsed)
 	}
 }
+
+// A cold Next.js dev server accepts the connection but compiles "/" for longer
+// than the whole probe window (seen on CI). Listening means reachable.
+func TestServerReachable_listeningButSlowerThanProbeWindow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(6 * time.Second)
+	}))
+	defer srv.Close()
+
+	if !ServerReachable(srv.URL) {
+		t.Fatal("ServerReachable = false for a listening server that is slow to answer")
+	}
+}
