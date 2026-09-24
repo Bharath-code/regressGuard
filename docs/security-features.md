@@ -73,7 +73,7 @@ $ rg mcp serve --project-root /home/user/my-project
 In MCP config:
 ```json
 {
-  "command": "rg",
+  "command": "regressguard",
   "args": ["mcp", "serve", "--project-root", "/path/to/project"]
 }
 ```

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/engine"
 )
 
 func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {
@@ -54,7 +54,7 @@ func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {
 }
 
 func TestRunNonInteractiveRequiresServerURLWhenDefaultUnreachable(t *testing.T) {
-	if serverReachable(DefaultServerURL) {
+	if engine.ServerReachable(DefaultServerURL) {
 		t.Skip("something is listening on " + DefaultServerURL)
 	}
 	root := t.TempDir()
@@ -168,24 +168,5 @@ func writeProject(t *testing.T, root string) {
 	}
 	if err := os.WriteFile(routePath, []byte(`export async function GET() {}`), 0o644); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// A cold Next dev server accepts connections but compiles "/" for seconds
-// before answering; init must count a listening server as reachable.
-func TestServerReachable_listeningButSlowToRespond(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Second)
-	}))
-	defer server.Close()
-
-	if !serverReachable(server.URL) {
-		t.Fatal("expected a listening server to be reachable")
-	}
-}
-
-func TestServerReachable_nothingListening(t *testing.T) {
-	if serverReachable("http://127.0.0.1:1") {
-		t.Fatal("expected unreachable when nothing listens")
 	}
 }

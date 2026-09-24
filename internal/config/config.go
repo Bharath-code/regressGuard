@@ -29,6 +29,14 @@ type Config struct {
 	RedactFields   []string `json:"redactFields,omitempty"`
 	Routes         []Route  `json:"routes"`
 	MaxHistory     int      `json:"maxHistory,omitempty"`
+	MCP            MCP      `json:"mcp,omitzero"`
+}
+
+// MCP controls what agents may do over the MCP server.
+type MCP struct {
+	// AllowSnapshot exposes the snapshot tool to agents. Off by default: the
+	// baseline is human-owned, or an agent can accept its own regression.
+	AllowSnapshot bool `json:"allowSnapshot,omitempty"`
 }
 
 type Auth struct {

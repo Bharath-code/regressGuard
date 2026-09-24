@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -57,26 +59,31 @@ type HitOptions struct {
 	OnRouteComplete func(index int, result RouteResult)
 }
 
-// ServerReachable probes the server URL, retrying briefly so a dev server
-// mid-hot-reload (e.g. Next.js recompiling right after an agent edits a file)
-// is not misreported as down. A truly unreachable server still fails fast:
-// connection refusals return immediately, so the worst case is dominated by
-// the ~3.5s retry window only when something is listening but stalled.
-// This is used by rg check to fail fast instead of timing out per-route.
+// ServerReachable reports whether something is listening at serverURL. It
+// dials TCP instead of issuing a GET: a cold Next.js dev server accepts the
+// connection but can compile "/" for longer than any sane probe timeout.
+// It retries briefly because a dev server restarting mid-hot-reload can close
+// its port for a moment. Connection refusals return immediately, so a truly
+// down server still fails fast.
 func ServerReachable(serverURL string) bool {
-	client := &http.Client{Timeout: serverProbeTimeout}
-	// Probe the root path — we just need a TCP connection, not a 200.
-	req, err := http.NewRequestWithContext(context.Background(), "GET", strings.TrimRight(serverURL, "/")+"/", nil)
-	if err != nil {
+	u, err := url.Parse(serverURL)
+	if err != nil || u.Host == "" {
 		return false
+	}
+	host := u.Host
+	if u.Port() == "" {
+		port := "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+		host = net.JoinHostPort(u.Hostname(), port)
 	}
 	for attempt := range serverProbeAttempts {
 		if attempt > 0 {
 			time.Sleep(serverProbeGap)
 		}
-		resp, err := client.Do(req)
-		if err == nil {
-			resp.Body.Close()
+		if conn, err := net.DialTimeout("tcp", host, serverProbeTimeout); err == nil {
+			_ = conn.Close()
 			return true
 		}
 	}

@@ -6,6 +6,16 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (MCP): the baseline is now human-owned.** `rg mcp serve` no longer
+  exposes the `snapshot` tool by default. An agent that could re-record the
+  baseline could accept its own regression (`check` fails → `snapshot` →
+  `check` passes). Record baselines with `rg snapshot`, or opt back in with
+  `"mcp": {"allowSnapshot": true}` in `.regressguard/config.json`. The `check`
+  tool now tells agents to ask the user for intentional changes.
+- MCP registration docs use `regressguard` instead of `rg` (ripgrep collision).
+
 ### Fixed
 
 - `rg snapshot` and `rg check` rendered a green "0 captured"/"0 unchanged"
@@ -23,9 +33,11 @@ versioning follows [SemVer](https://semver.org/).
 - Repair hints could point at the wrong files: changed files were cut to the
   first 5 *before* route matching, so in larger diffs the culprit was dropped.
   Now filters first, then caps the display (`+N more`).
-- `rg init` reported a running Next.js dev server as unreachable: it issued a
-  `GET /`, which a cold dev server answers only after compiling the page
-  (seconds on CI). Now checks for a listening TCP port instead.
+- `rg init`, `rg snapshot` and `rg check` could report a running Next.js dev
+  server as down: they probed with `GET /`, which a cold dev server answers
+  only after compiling the page (seconds on CI). A first `rg snapshot` right
+  after `npm run dev` could save a 0-route baseline. All three now share one
+  probe that checks for a listening TCP port.
 
 ### Added
 
