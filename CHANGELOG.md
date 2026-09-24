@@ -21,6 +21,12 @@ versioning follows [SemVer](https://semver.org/).
   so the MCP server never connected. Plugin now runs `regressguard`;
   `install.sh` installs that alias next to `rg`.
 
+### Added
+
+- CI on every push/PR: gofmt, go vet, unit tests, and an e2e job that runs
+  `demo/demo.sh` (break → detect → fix → green) against the Next.js fixture.
+  `demo.sh` now asserts each step instead of swallowing failures.
+
 ## [0.1.0] — 2026-07-16
 
 First public release.
