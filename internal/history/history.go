@@ -32,10 +32,10 @@ type TestMeta struct {
 
 // IndexEntry represents one archived snapshot in the history index.
 type IndexEntry struct {
-	File      string   `json:"file"`      // relative path: "20260520-133138-2b25619.json"
-	GitCommit string   `json:"gitCommit"` // short hash or "unknown"
+	File      string    `json:"file"`      // relative path: "20260520-133138-2b25619.json"
+	GitCommit string    `json:"gitCommit"` // short hash or "unknown"
 	CreatedAt time.Time `json:"createdAt"` // RFC 3339
-	Tests     TestMeta `json:"tests"`     // summary for listing
+	Tests     TestMeta  `json:"tests"`     // summary for listing
 }
 
 // Index is the full history index file.

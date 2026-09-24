@@ -760,7 +760,6 @@ func TestResolve_fileMissingFromDisk(t *testing.T) {
 	}
 }
 
-
 // --- List tests ---
 
 func TestList_includesLatestAndHistory(t *testing.T) {

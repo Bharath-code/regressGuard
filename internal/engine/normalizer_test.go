@@ -49,15 +49,15 @@ func TestNormalize_realJwtIsToken(t *testing.T) {
 
 func TestNormalize_requestScopedFieldsStripped(t *testing.T) {
 	input := map[string]any{
-		"status":         "ok",
-		"requestId":      "req_abc123",
-		"traceId":        "trace_xyz789",
-		"correlationId":  "corr_456",
-		"spanId":         "span_012",
-		"parentId":       "parent_345",
-		"buildId":        "build_678",
-		"request_id":     "req_snake_case",
-		"trace_id":       "trace_snake",
+		"status":        "ok",
+		"requestId":     "req_abc123",
+		"traceId":       "trace_xyz789",
+		"correlationId": "corr_456",
+		"spanId":        "span_012",
+		"parentId":      "parent_345",
+		"buildId":       "build_678",
+		"request_id":    "req_snake_case",
+		"trace_id":      "trace_snake",
 	}
 	got := Normalize(input).(map[string]any)
 	for _, key := range []string{"requestId", "traceId", "correlationId", "spanId", "parentId", "buildId", "request_id", "trace_id"} {

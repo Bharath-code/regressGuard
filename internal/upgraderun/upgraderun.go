@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	repo           = "Bharath-code/regressguard"
-	latestURL      = "https://api.github.com/repos/" + repo + "/releases/latest"
-	checksumsFile  = "checksums.txt"
-	httpTimeout    = 15 * time.Second
+	repo          = "Bharath-code/regressguard"
+	latestURL     = "https://api.github.com/repos/" + repo + "/releases/latest"
+	checksumsFile = "checksums.txt"
+	httpTimeout   = 15 * time.Second
 )
 
 // Options configures an upgrade run.
@@ -37,7 +37,7 @@ type Options struct {
 
 // Result is the machine-readable outcome of rg upgrade.
 type Result struct {
-	Status         string `json:"status"`          // "updated", "up-to-date", "available"
+	Status         string `json:"status"` // "updated", "up-to-date", "available"
 	CurrentVersion string `json:"currentVersion"`
 	LatestVersion  string `json:"latestVersion"`
 	Message        string `json:"message"`

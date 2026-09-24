@@ -16,16 +16,6 @@ import (
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 )
 
-// makeProject creates a temp directory with a minimal .regressguard/config.json.
-func makeProject(t *testing.T, cfg config.Config) string {
-	t.Helper()
-	dir := t.TempDir()
-	if err := config.Write(dir, cfg); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	return dir
-}
-
 // makeTestScript writes a tiny shell script that prints a vitest-style summary.
 func makeTestScript(t *testing.T, dir string, passed, failed int) string {
 	t.Helper()

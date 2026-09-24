@@ -45,9 +45,9 @@ type RouteState struct {
 
 // ChangeItem describes a single difference between before and after.
 type ChangeItem struct {
-	Type    string `json:"type"`              // "status", "schema", "timing", "field"
-	Field   string `json:"field,omitempty"`   // for field-level changes
-	Action  string `json:"action,omitempty"`  // "removed", "added", "changed"
+	Type    string `json:"type"`             // "status", "schema", "timing", "field"
+	Field   string `json:"field,omitempty"`  // for field-level changes
+	Action  string `json:"action,omitempty"` // "removed", "added", "changed"
 	Before  string `json:"before,omitempty"`
 	After   string `json:"after,omitempty"`
 	Message string `json:"message"`

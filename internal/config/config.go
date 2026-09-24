@@ -223,14 +223,15 @@ func EnvFileAge(root string) (modTime time.Time, exists bool) {
 //   - Bare entries (no prefix) are treated as field ignores
 //
 // Examples:
-//   # Ignore volatile fields
-//   field:requestId
-//   field:traceId
-//   internalRef
 //
-//   # Skip admin routes
-//   route:GET /api/admin/*
-//   route:* /api/internal/*
+//	# Ignore volatile fields
+//	field:requestId
+//	field:traceId
+//	internalRef
+//
+//	# Skip admin routes
+//	route:GET /api/admin/*
+//	route:* /api/internal/*
 func loadIgnoreFile(root string) (fields []string, routes []string) {
 	f, err := os.Open(IgnorePath(root))
 	if err != nil {

@@ -26,16 +26,16 @@ type Options struct {
 
 // Result is the machine-readable outcome of rg status.
 type Result struct {
-	Status        string `json:"status"`
-	ConfigExists  bool   `json:"configExists"`
-	Framework     string `json:"framework,omitempty"`
-	TestCommand   string `json:"testCommand,omitempty"`
-	ServerURL     string `json:"serverUrl,omitempty"`
-	SnapshotExists bool  `json:"snapshotExists"`
-	SnapshotAge   string `json:"snapshotAge,omitempty"`
-	SnapshotStale bool   `json:"snapshotStale"`
-	RouteCount    int    `json:"routeCount"`
-	HookInstalled bool   `json:"hookInstalled"`
+	Status         string `json:"status"`
+	ConfigExists   bool   `json:"configExists"`
+	Framework      string `json:"framework,omitempty"`
+	TestCommand    string `json:"testCommand,omitempty"`
+	ServerURL      string `json:"serverUrl,omitempty"`
+	SnapshotExists bool   `json:"snapshotExists"`
+	SnapshotAge    string `json:"snapshotAge,omitempty"`
+	SnapshotStale  bool   `json:"snapshotStale"`
+	RouteCount     int    `json:"routeCount"`
+	HookInstalled  bool   `json:"hookInstalled"`
 }
 
 // Run executes the status check and returns a Result.

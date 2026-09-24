@@ -187,9 +187,10 @@ func DiscoverNextAppRoutes(root string) ([]Route, error) {
 }
 
 // expressRoutePattern matches Express/Hono route definitions like:
-//   app.get("/api/users", ...)
-//   router.post('/api/health', ...)
-//   app.delete(`/api/items/:id`, ...)
+//
+//	app.get("/api/users", ...)
+//	router.post('/api/health', ...)
+//	app.delete(`/api/items/:id`, ...)
 var expressRoutePattern = regexp.MustCompile(
 	`(?:app|router|server)\.(get|post|put|patch|delete)\s*\(\s*["'` + "`" + `](/[^"'` + "`" + `]*)["'` + "`" + `]`,
 )
@@ -399,10 +400,11 @@ func DiscoverRoutesFromTests(root string) []Route {
 // testRoutePattern matches common test patterns for API route assertions.
 // Captures: (method, path)
 // Examples:
-//   .get("/api/users")  → GET, /api/users
-//   .post('/api/login') → POST, /api/login
-//   fetch("/api/health") → (empty), /api/health
-//   fetch(`${baseUrl}/api/users`) → skipped (dynamic)
+//
+//	.get("/api/users")  → GET, /api/users
+//	.post('/api/login') → POST, /api/login
+//	fetch("/api/health") → (empty), /api/health
+//	fetch(`${baseUrl}/api/users`) → skipped (dynamic)
 var testRoutePattern = regexp.MustCompile(
 	`(?:\.|\b)(get|post|put|patch|delete|fetch)\s*\(\s*["'` + "`" + `](/api[^"'` + "`" + `\$]*)["'` + "`" + `]`,
 )
