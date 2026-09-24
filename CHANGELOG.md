@@ -6,6 +6,16 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (MCP): the baseline is now human-owned.** `rg mcp serve` no longer
+  exposes the `snapshot` tool by default. An agent that could re-record the
+  baseline could accept its own regression (`check` fails → `snapshot` →
+  `check` passes). Record baselines with `rg snapshot`, or opt back in with
+  `"mcp": {"allowSnapshot": true}` in `.regressguard/config.json`. The `check`
+  tool now tells agents to ask the user for intentional changes.
+- MCP registration docs use `regressguard` instead of `rg` (ripgrep collision).
+
 ### Fixed
 
 - `rg snapshot` and `rg check` rendered a green "0 captured"/"0 unchanged"
