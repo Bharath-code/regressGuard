@@ -381,6 +381,43 @@ func TestRun_serverDown(t *testing.T) {
 	}
 }
 
+// A server-down snapshot must not overwrite a baseline that has routes: an agent
+// calling snapshot mid-restart would otherwise silently erase the contract.
+func TestRun_serverDown_keepsExistingBaseline(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{
+		Version:     1,
+		TestCommand: makeTestScript(t, dir, 4, 0),
+		ServerURL:   "http://127.0.0.1:19999",
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	good := snapshot.Snapshot{
+		Version: snapshot.Version,
+		Routes: map[string]snapshot.RouteRecord{
+			"GET /api/health": {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "abc"},
+		},
+	}
+	if err := snapshot.Write(dir, good); err != nil {
+		t.Fatalf("seed snapshot: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	_, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
+	if _, ok := err.(failures.Actionable); !ok {
+		t.Fatalf("expected actionable refusal, got %T: %v", err, err)
+	}
+	snap, loadErr := snapshot.Load(dir)
+	if loadErr != nil {
+		t.Fatalf("load snapshot: %v", loadErr)
+	}
+	if len(snap.Routes) != 1 {
+		t.Errorf("baseline was overwritten: %d routes left", len(snap.Routes))
+	}
+}
+
 // TestRun_serverDown_json verifies E10-T2: JSON output includes serverDown flag.
 func TestRun_serverDown_json(t *testing.T) {
 	dir := t.TempDir()

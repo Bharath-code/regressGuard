@@ -138,6 +138,19 @@ func TestParseTestOutput_failedNames_vitest(t *testing.T) {
 	}
 }
 
+// Captured from real vitest 1.6 non-TTY output: no ×/✕ tree, colored FAIL blocks.
+func TestParseTestOutput_failedNames_vitestRealOutput(t *testing.T) {
+	output := "\x1b[31m   \x1b[33m❯\x1b[31m tests/api.test.ts\x1b[2m > \x1b[22mhealth endpoint shape\x1b[2m > \x1b[22mreturns status and version fields\x1b[39m\n" +
+		"\x1b[31m\x1b[1m\x1b[7m FAIL \x1b[27m\x1b[22m\x1b[39m tests/api.test.ts\x1b[2m > \x1b[22mhealth endpoint shape\x1b[2m > \x1b[22mreturns status and version fields\n" +
+		"\x1b[31m\x1b[1m\x1b[7m FAIL \x1b[27m\x1b[22m\x1b[39m tests/broken.test.ts [ tests/broken.test.ts ]\n" +
+		"\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[31m1 failed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[1m\x1b[32m3 passed\x1b[39m\x1b[22m\x1b[90m (4)\x1b[39m\n"
+	result := parseTestOutput(output)
+	want := "tests/api.test.ts > health endpoint shape > returns status and version fields"
+	if len(result.FailedTests) != 1 || result.FailedTests[0] != want {
+		t.Errorf("expected [%s], got %v", want, result.FailedTests)
+	}
+}
+
 func TestParseTestOutput_failedNames_goTest(t *testing.T) {
 	output := `
 --- FAIL: TestUserUpdate (0.02s)

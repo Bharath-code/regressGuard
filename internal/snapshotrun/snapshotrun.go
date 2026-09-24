@@ -222,6 +222,20 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
+	// Never replace a baseline that has routes with one captured while the
+	// server was down — that silently erases the contract being guarded.
+	// ponytail: only the all-down case; partial skips still drop those routes.
+	if serverDown {
+		if prev, err := snapshot.Load(opts.ProjectRoot); err == nil && len(prev.Routes) > 0 {
+			return Result{}, failures.Actionable{
+				Title:       "rg snapshot refused: dev server is not responding.",
+				Cause:       fmt.Sprintf("Saving now would replace a baseline of %d routes with 0 routes.", len(prev.Routes)),
+				Next:        "npm run dev && rg snapshot",
+				MoreContext: "rg doctor",
+			}
+		}
+	}
+
 	// E3-T6: save snapshot.
 	if err := snapshot.Write(opts.ProjectRoot, snap, cfg.RedactFields); err != nil {
 		return Result{}, fmt.Errorf("save snapshot: %w", err)

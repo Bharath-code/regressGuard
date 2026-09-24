@@ -69,6 +69,14 @@ else
   sudo chmod +x "$INSTALL_DIR/$BINARY"
 fi
 
+# Unambiguous alias: `rg` collides with ripgrep on most machines; the Claude
+# Code plugin and docs-safe invocations use `regressguard`.
+if [ -w "$INSTALL_DIR" ]; then
+  ln -sf "$INSTALL_DIR/$BINARY" "$INSTALL_DIR/regressguard"
+else
+  sudo ln -sf "$INSTALL_DIR/$BINARY" "$INSTALL_DIR/regressguard"
+fi
+
 # Verify using the absolute path — `command -v rg` may find ripgrep instead.
 INSTALLED="$INSTALL_DIR/$BINARY"
 if [ -x "$INSTALLED" ]; then
@@ -89,8 +97,8 @@ elif [ "$RESOLVED" != "$INSTALLED" ]; then
   if "$RESOLVED" --version 2>/dev/null | grep -q ripgrep; then
     echo "That is ripgrep. Typing 'rg' will run ripgrep, not RegressGuard."
   fi
-  echo "Use the full path instead:"
-  echo "  $INSTALLED version"
+  echo "Use the unambiguous name instead:"
+  echo "  regressguard version"
 fi
 
 echo ""
