@@ -26,6 +26,9 @@ if ! curl -sf -m 2 http://localhost:3000/api/health > /dev/null; then
   for p in profile users auth/verify; do curl -sf "http://localhost:3000/api/$p" > /dev/null || true; done
 fi
 
+# .regressguard/ is gitignored, so fresh checkouts (CI) have no config yet.
+[ -f .regressguard/config.json ] || "$RG" init --yes
+
 echo "── 1. Record the known-good baseline ──────────────────"
 "$RG" snapshot
 
