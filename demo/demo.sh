@@ -31,15 +31,16 @@ echo "── 1. Record the known-good baseline ───────────
 
 echo
 echo "── 2. An AI agent 'improves' the code (silently drops a field) ──"
-sed -i '' '/subscription: "pro",/d' app/api/profile/route.ts
+sed -i.bak '/subscription: "pro",/d' app/api/profile/route.ts && rm -f app/api/profile/route.ts.bak
 
 echo
 echo "── 3. rg check catches it before the commit ───────────"
-"$RG" check || true
+# Doubles as the e2e smoke test (CI): each step asserts, so a broken core fails loudly.
+if "$RG" check; then echo "FAIL: regression not detected" >&2; exit 1; fi
 
 echo
 echo "── 4. The agent-facing payload names the culprit file ─"
-"$RG" check --json 2>/dev/null | python3 -c 'import json,sys; f=json.load(sys.stdin)["results"][0]; print("hint:", f["hint"])' || true
+{ "$RG" check --json 2>/dev/null || true; } | python3 -c 'import json,sys; f=json.load(sys.stdin)["results"][0]; assert "route.ts" in f["hint"], f; print("hint:", f["hint"])' 
 
 echo
 echo "── 5. Agent fixes it, check goes green ────────────────"
