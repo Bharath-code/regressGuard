@@ -1,6 +1,7 @@
 // Package mcprun implements the rg mcp serve command.
-// It exposes snapshot, check, and status as MCP tools over stdio transport,
-// allowing AI agents (Claude Code, Cursor, etc.) to call them directly.
+// It exposes check and status as MCP tools over stdio transport, allowing AI
+// agents (Claude Code, Cursor, etc.) to verify their own edits. snapshot is
+// exposed only when config sets mcp.allowSnapshot: the baseline is human-owned.
 package mcprun
 
 import (
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Bharath-code/regressguard/internal/checkrun"
+	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/snapshotrun"
 	"github.com/Bharath-code/regressguard/internal/statusrun"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -72,8 +74,18 @@ func (a *auditLogger) log(toolName string, args map[string]any, status string, d
 
 // Serve starts the MCP server on stdio transport.
 // It blocks until the connection is closed.
-// S4: validates and restricts operations to the specified project root.
 func Serve(opts Options) error {
+	s, err := newServer(opts)
+	if err != nil {
+		return err
+	}
+	// Start stdio transport (blocks until stdin closes).
+	return server.ServeStdio(s)
+}
+
+// newServer builds the MCP server with its tools registered.
+// S4: validates and restricts operations to the specified project root.
+func newServer(opts Options) (*server.MCPServer, error) {
 	if opts.ProjectRoot == "" {
 		opts.ProjectRoot = "."
 	}
@@ -81,11 +93,11 @@ func Serve(opts Options) error {
 	// S4: resolve to absolute path and validate it exists.
 	absRoot, err := filepath.Abs(opts.ProjectRoot)
 	if err != nil {
-		return fmt.Errorf("resolve project root: %w", err)
+		return nil, fmt.Errorf("resolve project root: %w", err)
 	}
 	info, err := os.Stat(absRoot)
 	if err != nil || !info.IsDir() {
-		return fmt.Errorf("project root %q is not a valid directory", absRoot)
+		return nil, fmt.Errorf("project root %q is not a valid directory", absRoot)
 	}
 	opts.ProjectRoot = absRoot
 
@@ -100,11 +112,12 @@ func Serve(opts Options) error {
 
 	// Register tools.
 	s.AddTool(checkTool(), makeCheckHandler(opts.ProjectRoot, audit))
-	s.AddTool(snapshotTool(), makeSnapshotHandler(opts.ProjectRoot, audit))
 	s.AddTool(statusTool(), makeStatusHandler(opts.ProjectRoot, audit))
-
-	// Start stdio transport (blocks until stdin closes).
-	return server.ServeStdio(s)
+	// ponytail: read once at startup; restart the server after changing it.
+	if cfg, err := config.Load(opts.ProjectRoot); err == nil && cfg.MCP.AllowSnapshot {
+		s.AddTool(snapshotTool(), makeSnapshotHandler(opts.ProjectRoot, audit))
+	}
+	return s, nil
 }
 
 // validatePath ensures a path doesn't escape the project root (S4).
@@ -130,7 +143,7 @@ func validatePath(projectRoot, requestedPath string) error {
 
 func checkTool() mcp.Tool {
 	return mcp.NewTool("check",
-		mcp.WithDescription("Compare current state against the snapshot. Detects regressions in tests, API status codes, response schemas, and timing. Returns structured results with severity levels."),
+		mcp.WithDescription("Compare current state against the snapshot. Detects regressions in tests, API status codes, response schemas, and timing. Returns structured results with severity levels. On a critical finding, fix the code. If the change is intentional, tell the user and ask them to run `rg snapshot` — do not re-record the baseline yourself."),
 		mcp.WithString("since",
 			mcp.Description("Git ref to scope check to changed routes only (e.g. HEAD~1, main). Optional."),
 		),

@@ -253,3 +253,51 @@ func TestServe_invalidProjectRoot_errors(t *testing.T) {
 		t.Error("expected Serve to reject a non-existent project root")
 	}
 }
+
+// --- baseline ownership: agents may not re-baseline by default ---
+
+func toolNames(t *testing.T, root string) map[string]bool {
+	t.Helper()
+	s, err := newServer(Options{Version: "test", ProjectRoot: root})
+	if err != nil {
+		t.Fatalf("newServer: %v", err)
+	}
+	names := map[string]bool{}
+	for name := range s.ListTools() {
+		names[name] = true
+	}
+	return names
+}
+
+// If the agent can call snapshot, it can accept its own regression:
+// check fails -> snapshot -> check passes. The baseline is human-owned.
+func TestNewServer_snapshotHiddenByDefault(t *testing.T) {
+	dir := t.TempDir()
+	if err := config.Write(dir, config.Config{Version: 1, TestCommand: "true"}); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	names := toolNames(t, dir)
+	if names["snapshot"] {
+		t.Error("snapshot must not be exposed to agents without opt-in")
+	}
+	if !names["check"] || !names["status"] {
+		t.Errorf("check and status must always be exposed, got %v", names)
+	}
+}
+
+func TestNewServer_snapshotHiddenWithoutConfig(t *testing.T) {
+	if toolNames(t, t.TempDir())["snapshot"] {
+		t.Error("snapshot must not be exposed when there is no config")
+	}
+}
+
+func TestNewServer_snapshotExposedWhenOptedIn(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{Version: 1, TestCommand: "true", MCP: config.MCP{AllowSnapshot: true}}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if !toolNames(t, dir)["snapshot"] {
+		t.Error("snapshot should be exposed when mcp.allowSnapshot is true")
+	}
+}

@@ -66,8 +66,9 @@ rg mcp serve
 claude mcp add regressguard -- /full/path/to/rg mcp serve
 ```
 
-Then in a Claude Code session against `fixtures/nextjs-app`, ask it to call
-`snapshot`, break something, call `check`, and confirm the JSON payload
+Then run `rg snapshot` yourself (agents get no `snapshot` tool by default).
+In a Claude Code session against `fixtures/nextjs-app`, break something, ask
+it to call `check`, and confirm the JSON payload
 matches `docs/json-contract.md`. Check `.regressguard/audit.log` (or
 equivalent) got an entry per call.
 

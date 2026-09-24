@@ -12,7 +12,8 @@ When an AI coding agent edits your app it can silently break an API contract —
 
 ```
 # Agent-native (primary): the agent calls these as MCP tools in its loop
-snapshot → check → status        # see "Agent-native verification (MCP)" below
+check → status                  # see "Agent-native verification (MCP)" below
+                                 # the baseline stays yours: agents cannot re-record it
 
 # Human / CI (also works): two commands, no test-writing, under 15 seconds
 rg snapshot   # record the known-good state
@@ -181,7 +182,7 @@ rg mcp serve
 **Register with Claude Code:**
 
 ```sh
-claude mcp add regressguard -- rg mcp serve
+claude mcp add regressguard -- regressguard mcp serve
 ```
 
 **Register with Cursor** (`.cursor/mcp.json`):
@@ -189,18 +190,27 @@ claude mcp add regressguard -- rg mcp serve
 ```json
 {
   "mcpServers": {
-    "regressguard": { "command": "rg", "args": ["mcp", "serve"] }
+    "regressguard": { "command": "regressguard", "args": ["mcp", "serve"] }
   }
 }
 ```
 
-The agent then has three tools:
+The agent then has two tools:
 
 | Tool | Purpose |
 |---|---|
-| `snapshot` | Record the current passing state as the baseline |
 | `check` | Compare current state against the snapshot; returns structured findings with severity |
 | `status` | Sub-second health check (snapshot age, route/config/hook status) — no tests run |
+
+**The baseline is human-owned.** Agents get no `snapshot` tool by default. If they
+could re-record the baseline, an agent could accept its own regression
+(`check` fails → `snapshot` → `check` passes). You record the baseline with
+`rg snapshot`. To let agents re-baseline anyway, set this in
+`.regressguard/config.json` and restart the MCP server:
+
+```json
+{ "mcp": { "allowSnapshot": true } }
+```
 
 Tool responses are the **same machine-readable payload as `rg check --json`** — see [`docs/json-contract.md`](docs/json-contract.md). Every tool call is recorded to an append-only audit log under `.regressguard/` (tool, status, duration, timestamp).
 

@@ -12,7 +12,7 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
 │                                                 │
 │  1. IDE spawns: rg mcp serve                    │
 │  2. Communicates via stdin/stdout (JSON-RPC)    │
-│  3. Calls tools: check, snapshot, status        │
+│  3. Calls tools: check, status                  │
 │  4. Gets structured results back                │
 └────────────────┬────────────────────────────────┘
                  │ stdin/stdout (local process)
@@ -36,7 +36,7 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
    {
      "mcpServers": {
        "regressguard": {
-         "command": "rg",
+         "command": "regressguard",
          "args": ["mcp", "serve"]
        }
      }
@@ -49,7 +49,8 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
 
 5. **Agent calls tools** — after making code changes, the AI agent can call:
    - `check` → "did I break anything?"
-   - `snapshot` → "save current state as the new baseline"
+   - `snapshot` → only if config sets `"mcp": {"allowSnapshot": true}`; off by
+     default so an agent can't re-baseline away its own regression
    - `status` → "what's the project health?"
 
 6. **Process dies when IDE disconnects** — when stdin closes (IDE shuts down or disconnects), the MCP server exits cleanly
