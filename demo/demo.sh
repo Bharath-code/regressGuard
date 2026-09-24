@@ -10,7 +10,8 @@ cd "$FIXTURE"
 
 cleanup() {
   git -C "$ROOT" checkout -- fixtures/nextjs-app/app/api/profile/route.ts 2>/dev/null || true
-  [ -n "${DEV_PID:-}" ] && kill "$DEV_PID" 2>/dev/null || true
+  # npm spawns next as a child; kill both or the server outlives the demo.
+  [ -n "${DEV_PID:-}" ] && { pkill -P "$DEV_PID" 2>/dev/null; kill "$DEV_PID" 2>/dev/null; } || true
 }
 trap cleanup EXIT
 
