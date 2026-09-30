@@ -1320,6 +1320,15 @@ Scope explicitly deferred from v1:
 5. AI-generated test creation.
 6. Enterprise compliance reports.
 
+### **Decision log — 2026-09-30 (Field Audit → Gate v2)**
+
+| ID | Decision | Classification | Rationale |
+| :---- | :---- | :---- | :---- |
+| D1 | Drop snapshot HMAC. Git history + CI `--base <ref>` + CODEOWNERS are the baseline authority. | P0 | Path-keyed HMAC is forgeable by anyone who can read the repo and false-alarms on every other checkout path. A committed baseline makes every change a reviewable PR diff. |
+| D2 | Hard rename binary `rg` → `regressguard` in v0.2.0. No `rg` shim is shipped. | P0 | `rg` collides with ripgrep, which is preinstalled on GitHub runners, so the guard can silently no-op. A shim would bring the collision back. The installed base is about zero, so a clean break costs nothing now and more later. One name across command, repo, registry and Action helps recall. Users who want brevity can `alias`. |
+| D3 | No telemetry. §8.1 "no network calls" stays a product promise. Usage is measured with zero-code public proxies: GitHub code search for committed `.regressguard/snapshot.json` and for `uses: Bharath-code/regressguard`, plus release download counts. | P0 (measurement) | "Local, deterministic, no LLM, no phone-home" is the trust story and the contrast with cloud and LLM competitors. Opt-in pings get low opt-in rates and create privacy review friction for teams. Gate v2's "weekly repos" becomes "public repos with a committed baseline or workflow". |
+| D4 | `regressguard hooks install --claude` writes a Claude Code Stop hook to project-scope `.claude/settings.json` (merged, idempotent). `regressguard init` offers it when `.claude/` exists (TTY only, default yes). Discovery goes through the Claude Code plugin marketplace listing. | P1 launch enhancer | Project scope is committed, so every teammate and agent session inherits the guard. That spreads it through the repo, not one laptop, which helps retention. The Stop hook is the standard slot for blocking "done". A marketplace listing is the discovery channel. |
+
 # **12\. 7-Day Build Plan**
 
 | Parkinson's Law applied: scope is locked to what ships in 7 days. Nothing else gets added. |

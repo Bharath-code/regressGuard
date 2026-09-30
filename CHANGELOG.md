@@ -6,7 +6,20 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
+
 ### Changed
+
+- `snapshot.json` is now committed by default: `rg init` writes `.regressguard/*` + `!.regressguard/snapshot.json` to `.gitignore` (`rg doctor` warns on the old whole-directory ignore). Re-snapshotting an unchanged contract no longer rewrites the file, so PRs don't diff on timings/timestamps.
+- **Breaking: array schemas now merge object keys across the first 20 elements**
+  (was: first element only), so a field dropped from a later item is caught.
+  Schema hashes change for routes returning arrays: re-run `rg snapshot` once.
+- `rg upgrade` fails closed: a release without `checksums.txt` is refused, and
+  the GPG path (which trusted any keyring key) is removed.
+- Agent-facing output no longer suggests re-baselining; a human approves baseline changes.
+- Bumped `golang.org/x/text` v0.39.0, `golang.org/x/sys` v0.44.0; CI now runs govulncheck + staticcheck; releases attest build provenance.
 
 - **Breaking (MCP): the baseline is now human-owned.** `rg mcp serve` no longer
   exposes the `snapshot` tool by default. An agent that could re-record the

@@ -23,6 +23,9 @@ const (
 	TypeSchema     = "schema"
 	TypeTiming     = "timing"
 	TypeUnverified = "unverified"
+	// TypeBaselineChanged marks a route whose recorded contract differs from the
+	// --base ref: a human must approve the baseline change.
+	TypeBaselineChanged = "BASELINE_CHANGED"
 )
 
 // CheckResult is a single finding from the diff engine.

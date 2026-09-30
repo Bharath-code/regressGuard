@@ -30,6 +30,7 @@ type Options struct {
 	JSON        bool
 	Verbose     bool
 	HookMode    bool
+	Base        string // git ref whose committed snapshot is the authoritative baseline (e.g. "origin/main")
 	Since       string // git ref to scope routes by changed files (e.g. "HEAD~1", "main")
 	AutoServer  bool   // spawn dev server from config, wait for ready, kill on exit
 	Celebrate   bool   // opt in to motion effects (staggered reveal, slide-in, celebration)
@@ -83,7 +84,7 @@ func Run(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	snap, err := loadSnapshot(opts.ProjectRoot)
+	snap, baselineChanges, err := loadBaseline(opts)
 	if err != nil {
 		return Result{}, err
 	}
@@ -97,7 +98,7 @@ func Run(opts Options) (Result, error) {
 
 	// E10-T4: snapshot age warning (non-blocking, stderr only).
 	if age := time.Since(snap.CreatedAt); age > 24*time.Hour {
-		msg := fmt.Sprintf("%s Snapshot is %s old. Consider running rg snapshot for a fresh baseline.", ui.SymbolWarning, formatAge(age))
+		msg := fmt.Sprintf("%s Snapshot is %s old. A human should review and refresh the baseline.", ui.SymbolWarning, formatAge(age))
 		_, _ = fmt.Fprintln(opts.Stderr, msg)
 	}
 
@@ -384,6 +385,12 @@ func Run(opts Options) (Result, error) {
 		diffSpinner.Stop()
 	}
 
+	for _, c := range baselineChanges {
+		diff.Results = append(diff.Results, c)
+		diff.CriticalCount++
+		diff.HasCritical = true
+	}
+
 	status := statusFromDiff(diff)
 	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
 	findings := make([]CheckFinding, 0, len(diff.Results))
@@ -430,7 +437,7 @@ func Run(opts Options) (Result, error) {
 
 	// W3: snapshot auto-refresh — when check passes and snapshot is stale (>24h),
 	// silently update the snapshot so the user doesn't get repeated stale warnings.
-	if result.Status == "pass" && time.Since(snap.CreatedAt) > 24*time.Hour {
+	if result.Status == "pass" && opts.Base == "" && time.Since(snap.CreatedAt) > 24*time.Hour {
 		autoRefreshSnapshot(opts, afterSnap)
 	}
 
@@ -459,6 +466,52 @@ func loadConfig(root string) (config.Config, error) {
 		return config.Config{}, failures.MissingTestCommand()
 	}
 	return cfg, nil
+}
+
+// loadBaseline returns the snapshot to compare against. With opts.Base it is the
+// snapshot committed at that ref, plus BASELINE_CHANGED findings for every route
+// whose contract in the working tree differs from it.
+func loadBaseline(opts Options) (snapshot.Snapshot, []engine.CheckResult, error) {
+	if opts.Base == "" {
+		snap, err := loadSnapshot(opts.ProjectRoot)
+		return snap, nil, err
+	}
+	spec := opts.Base + ":" + snapshot.DirName + "/" + snapshot.FileName
+	out, err := exec.Command("git", "-C", opts.ProjectRoot, "show", spec).Output()
+	if err != nil {
+		return snapshot.Snapshot{}, nil, failures.Actionable{
+			Title:       "rg check failed: no baseline at --base " + opts.Base + ".",
+			Cause:       "Could not read " + spec + " (ref missing, or no snapshot committed there yet).",
+			Next:        "git add .regressguard/snapshot.json && git commit, merge it, then re-run with --base",
+			MoreContext: "rg check --help",
+		}
+	}
+	var base snapshot.Snapshot
+	if err := json.Unmarshal(out, &base); err != nil || base.Version != snapshot.Version {
+		return snapshot.Snapshot{}, nil, failures.Actionable{
+			Title:       "rg check failed: baseline at --base " + opts.Base + " is unreadable or incompatible.",
+			Cause:       fmt.Sprintf("Expected snapshot version %d.", snapshot.Version),
+			Next:        "rg check --help",
+			MoreContext: "rg check --help",
+		}
+	}
+	if !snapshot.Exists(opts.ProjectRoot) {
+		return base, nil, nil
+	}
+	working, err := snapshot.Load(opts.ProjectRoot)
+	if err != nil {
+		return snapshot.Snapshot{}, nil, err
+	}
+	var changes []engine.CheckResult
+	for _, r := range engine.DiffSnapshots(base, working).Results {
+		if r.Severity != engine.SeverityCritical {
+			continue
+		}
+		r.Type = engine.TypeBaselineChanged
+		r.Message = "Baseline changed vs " + opts.Base + " (needs human approval): " + r.Message
+		changes = append(changes, r)
+	}
+	return base, changes, nil
 }
 
 func loadSnapshot(root string) (snapshot.Snapshot, error) {
@@ -784,7 +837,7 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 
 	footerLines = append(footerLines, ui.NextSection(stdout, "rg check --verbose", "git diff")...)
 	footerLines = append(footerLines, "")
-	footerLines = append(footerLines, paint(stdout, ui.ColorMuted, "If this change is intentional: rg snapshot"))
+	footerLines = append(footerLines, paint(stdout, ui.ColorMuted, "A human must approve a baseline change (rg snapshot, reviewed in PR)"))
 	footerLines = append(footerLines, "")
 	ui.StaggeredPrint(stdout, footerLines)
 

@@ -143,7 +143,7 @@ func validatePath(projectRoot, requestedPath string) error {
 
 func checkTool() mcp.Tool {
 	return mcp.NewTool("check",
-		mcp.WithDescription("Compare current state against the snapshot. Detects regressions in tests, API status codes, response schemas, and timing. Returns structured results with severity levels. On a critical finding, fix the code. If the change is intentional, tell the user and ask them to run `rg snapshot` — do not re-record the baseline yourself."),
+		mcp.WithDescription("Compare current state against the snapshot. Detects regressions in tests, API status codes, response schemas, and timing. Returns structured results with severity levels. On a critical finding, fix the code. If the change is intentional, tell the user; a human must approve any baseline change — never re-record it yourself."),
 		mcp.WithString("since",
 			mcp.Description("Git ref to scope check to changed routes only (e.g. HEAD~1, main). Optional."),
 		),

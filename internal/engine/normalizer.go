@@ -69,6 +69,31 @@ func NormalizeWithIgnore(value any, ignoreFields []string) any {
 	return normalize(value, extra)
 }
 
+// arraySampleSize bounds how many array elements contribute to the merged shape.
+const arraySampleSize = 20
+
+// mergeShapes unions object keys of two normalized shapes; first value wins on conflict.
+func mergeShapes(a, b any) any {
+	am, aok := a.(map[string]any)
+	bm, bok := b.(map[string]any)
+	if aok && bok {
+		for k, bv := range bm {
+			if av, ok := am[k]; ok {
+				am[k] = mergeShapes(av, bv)
+			} else {
+				am[k] = bv
+			}
+		}
+		return am
+	}
+	al, aok := a.([]any)
+	bl, bok := b.([]any)
+	if aok && bok && len(al) == 1 && len(bl) == 1 {
+		return []any{mergeShapes(al[0], bl[0])}
+	}
+	return a
+}
+
 func normalize(value any, extra map[string]bool) any {
 	switch v := value.(type) {
 	case nil:
@@ -94,7 +119,11 @@ func normalize(value any, extra map[string]bool) any {
 		if len(v) == 0 {
 			return "empty_array"
 		}
-		return []any{normalize(v[0], extra)}
+		merged := normalize(v[0], extra)
+		for _, el := range v[1:min(len(v), arraySampleSize)] {
+			merged = mergeShapes(merged, normalize(el, extra))
+		}
+		return []any{merged}
 	case map[string]any:
 		out := make(map[string]any, len(v))
 		for key, nested := range v {
