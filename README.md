@@ -331,6 +331,14 @@ NO_COLOR=1 rg check
     server-command: npm run dev
 ```
 
+On pull requests the action compares against the snapshot committed on the base branch (`rg check --base origin/main`), so a PR that edits `.regressguard/snapshot.json` to hide a regression still fails. Require a human approval when the baseline changes with a CODEOWNERS rule:
+
+```
+/.regressguard/snapshot.json  @your-handle
+```
+
+Commit `.regressguard/snapshot.json` (`rg init` adds `.regressguard/*` + `!.regressguard/snapshot.json` to `.gitignore`); everything else in `.regressguard/` stays local.
+
 See [`action.yml`](action.yml) for all inputs (version pinning, working directory, server URL).
 
 ---

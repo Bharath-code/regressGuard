@@ -6,7 +6,8 @@ on:
 
 permissions:
   contents: write # goreleaser release + mcpb asset upload
-  id-token: write # MCP registry OIDC auth
+  id-token: write # MCP registry OIDC auth + provenance
+  attestations: write # build provenance
 
 jobs:
   release:
@@ -30,6 +31,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*.tar.gz\ndist/checksums.txt"
 
       - name: Build MCPB bundle
         run: |

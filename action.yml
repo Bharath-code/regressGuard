@@ -35,6 +35,10 @@ inputs:
     description: "Fail the action (exit 1) on critical regressions"
     required: false
     default: "true"
+  base:
+    description: "Git ref whose committed snapshot is the baseline. 'auto' = the PR base branch on pull_request events (skipped when it has no snapshot yet); '' disables."
+    required: false
+    default: "auto"
   token:
     description: "GitHub token for posting PR comments (default: github.token)"
     required: false
@@ -132,8 +136,24 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
+        BASE_ARG=""
+        BASE="${{ inputs.base }}"
+        if [ "$BASE" = "auto" ]; then
+          BASE=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          fi
+        fi
+        if [ -n "$BASE" ]; then
+          git fetch --no-tags --depth=1 origin "${BASE#origin/}" 2>/dev/null || true
+          if git cat-file -e "$BASE:.regressguard/snapshot.json" 2>/dev/null; then
+            BASE_ARG="--base $BASE"
+          else
+            echo "::notice::No snapshot at $BASE yet (first adoption); checking against the working-tree baseline."
+          fi
+        fi
         set +e
-        RESULT=$("$RG_BIN" check --json 2>/dev/null)
+        RESULT=$("$RG_BIN" check --json $BASE_ARG 2>/dev/null)
         EXIT_CODE=$?
         set -e
 

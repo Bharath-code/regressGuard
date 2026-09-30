@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -207,5 +208,35 @@ func TestNormalizeAndHash_schemaChangeCausesHashChange(t *testing.T) {
 	h2 := NormalizeAndHash(body2, nil)
 	if h1 == h2 {
 		t.Error("removing a field should change the schema hash")
+	}
+}
+
+func TestNormalize_arrayMergesKeysAcrossElements(t *testing.T) {
+	input := []any{
+		map[string]any{"name": "a", "role": "admin"},
+		map[string]any{"name": "b"},
+		map[string]any{"name": "c", "role": "user", "extra": true},
+	}
+	elem := Normalize(input).([]any)[0].(map[string]any)
+	for _, k := range []string{"name", "role", "extra"} {
+		if _, ok := elem[k]; !ok {
+			t.Errorf("expected merged key %q, got %v", k, elem)
+		}
+	}
+}
+
+func TestDiffSchemaShapes_fieldRemovedFromLaterItem(t *testing.T) {
+	mk := func(items []any) []byte {
+		b, _ := json.Marshal(map[string]any{"items": Normalize(items)})
+		return b
+	}
+	before := mk([]any{map[string]any{"n": "a"}, map[string]any{"n": "b", "role": "x"}})
+	after := mk([]any{map[string]any{"n": "a"}, map[string]any{"n": "b"}})
+	changes := DiffSchemaShapes(before, after)
+	if len(changes) != 1 || changes[0].Field != "items[].role" || changes[0].Action != "removed" {
+		t.Fatalf("got %+v", changes)
+	}
+	if string(before) != string(mk([]any{map[string]any{"n": "a"}, map[string]any{"n": "b", "role": "x"}})) {
+		t.Error("shape not stable across runs")
 	}
 }

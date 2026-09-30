@@ -191,6 +191,7 @@ func newCheckCommand() *cobra.Command {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		since, _ := cmd.Flags().GetString("since")
+		base, _ := cmd.Flags().GetString("base")
 		autoServer, _ := cmd.Flags().GetBool("auto-server")
 		celebrate, _ := cmd.Flags().GetBool("celebrate")
 
@@ -199,6 +200,7 @@ func newCheckCommand() *cobra.Command {
 			JSON:        jsonMode,
 			Verbose:     verbose,
 			Since:       since,
+			Base:        base,
 			AutoServer:  autoServer,
 			Celebrate:   celebrate,
 			Stdout:      cmd.OutOrStdout(),
@@ -223,6 +225,7 @@ func newCheckCommand() *cobra.Command {
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	cmd.Flags().Bool("verbose", false, "write route and request diagnostics to stderr")
 	cmd.Flags().String("since", "", "scope to routes changed since git ref (HEAD~1, main)")
+	cmd.Flags().String("base", "", "baseline from this git ref (e.g. origin/main)")
 	cmd.Flags().Bool("auto-server", false, "spawn dev server from config, run check, kill on exit")
 	cmd.Flags().Bool("celebrate", false, "enable motion effects (off by default)")
 	return cmd

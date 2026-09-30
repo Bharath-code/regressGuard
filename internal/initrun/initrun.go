@@ -16,6 +16,7 @@ import (
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/scanner"
+	"github.com/Bharath-code/regressguard/internal/snapshot"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
 
@@ -132,6 +133,10 @@ func Run(opts Options) (Result, error) {
 
 	if err := config.Write(detected.Root, cfg); err != nil {
 		return Result{}, err
+	}
+
+	if err := snapshot.EnsureGitignore(detected.Root); err != nil {
+		fmt.Fprintf(opts.Stderr, "%s could not update .gitignore: %v\n", ui.SymbolWarning, err)
 	}
 
 	result := Result{

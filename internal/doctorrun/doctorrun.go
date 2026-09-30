@@ -143,6 +143,11 @@ func runChecks(opts Options) bool {
 		printWarn(opts.Stdout, "Snapshot", "not found — run rg snapshot before rg check")
 	}
 
+	if snapshot.LegacyIgnore(opts.ProjectRoot) {
+		printWarn(opts.Stdout, "Gitignore", ".gitignore ignores all of .regressguard/ — snapshot.json cannot be committed")
+		_, _ = fmt.Fprintf(opts.Stdout, "  Fix: replace '.regressguard/' with '.regressguard/*' and '!.regressguard/snapshot.json'\n")
+	}
+
 	_, _ = fmt.Fprintln(opts.Stdout)
 
 	// 6. Git check.

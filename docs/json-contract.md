@@ -32,7 +32,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
 ```json
 {
   "severity": "CRITICAL | WARNING",
-  "type": "tests | status | schema | timing | unverified",
+  "type": "tests | status | schema | timing | unverified | BASELINE_CHANGED",
   "route": "GET /api/users",
   "before": 200,
   "after": 500,
@@ -56,6 +56,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
 
 | `type` | severity | `before` / `after` | Meaning |
 |---|---|---|---|
+| `BASELINE_CHANGED` | CRITICAL | as the underlying change (status int, schema hash, …) | **Added with `rg check --base <ref>`.** The working-tree `snapshot.json` records a different contract than the one committed at `<ref>` for this route. A human must approve it (CODEOWNERS). The same run also reports any real regression vs the `<ref>` baseline as its usual finding. |
 | `tests` | CRITICAL | int / int (passed counts) | New test failures vs baseline (count delta). |
 | `status` | CRITICAL | int / int | HTTP status code changed. A disappeared route uses `before=<status>`, `after=null`. |
 | `schema` | CRITICAL | string / string (8-char hash prefixes) | Response shape changed; see `schemaDiff`. |

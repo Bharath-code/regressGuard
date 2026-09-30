@@ -22,10 +22,12 @@ import (
 
 const (
 	repo          = "Bharath-code/regressguard"
-	latestURL     = "https://api.github.com/repos/" + repo + "/releases/latest"
 	checksumsFile = "checksums.txt"
 	httpTimeout   = 15 * time.Second
 )
+
+// latestURL is a var so tests can point it at an httptest server.
+var latestURL = "https://api.github.com/repos/" + repo + "/releases/latest"
 
 // Options configures an upgrade run.
 type Options struct {
@@ -147,31 +149,22 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
-	// Verify checksum if available.
-	if checksumsURL != "" {
-		_, _ = fmt.Fprintf(opts.Stderr, "%s Verifying checksum...\n", ui.SymbolRunning)
-		if err := verifyChecksum(checksumsURL, archivePath, archiveName); err != nil {
-			return Result{}, failures.Actionable{
-				Title:       "rg upgrade failed: checksum verification failed.",
-				Cause:       err.Error(),
-				Next:        "rg upgrade",
-				MoreContext: "https://github.com/" + repo + "/releases",
-			}
+	// Checksum verification is mandatory: no checksums.txt means no install.
+	if checksumsURL == "" {
+		return Result{}, failures.Actionable{
+			Title:       "rg upgrade failed: release has no checksums.txt.",
+			Cause:       "Refusing to install an archive that cannot be verified.",
+			Next:        "https://github.com/" + repo + "/releases/tag/" + release.TagName,
+			MoreContext: "rg version",
 		}
 	}
-
-	// S5: verify GPG signature if available.
-	sigURL := ""
-	for _, asset := range release.Assets {
-		if asset.Name == archiveName+".sig" || asset.Name == archiveName+".asc" {
-			sigURL = asset.BrowserDownloadURL
-			break
-		}
-	}
-	if sigURL != "" && gpgAvailable() {
-		_, _ = fmt.Fprintf(opts.Stderr, "%s Verifying GPG signature...\n", ui.SymbolRunning)
-		if err := verifyGPGSignature(sigURL, archivePath, tmpDir); err != nil {
-			_, _ = fmt.Fprintf(opts.Stderr, "%s GPG verification failed: %s (continuing with checksum only)\n", ui.SymbolWarning, err.Error())
+	_, _ = fmt.Fprintf(opts.Stderr, "%s Verifying checksum...\n", ui.SymbolRunning)
+	if err := verifyChecksum(checksumsURL, archivePath, archiveName); err != nil {
+		return Result{}, failures.Actionable{
+			Title:       "rg upgrade failed: checksum verification failed.",
+			Cause:       err.Error(),
+			Next:        "rg upgrade",
+			MoreContext: "https://github.com/" + repo + "/releases",
 		}
 	}
 
@@ -391,29 +384,6 @@ func resolveSymlink(path string) (string, error) {
 
 func paint(w io.Writer, color ui.Color, text string) string {
 	return ui.Paint(w, color, text)
-}
-
-// gpgAvailable checks if gpg is installed and accessible.
-func gpgAvailable() bool {
-	_, err := exec.LookPath("gpg")
-	return err == nil
-}
-
-// verifyGPGSignature downloads the .sig/.asc file and verifies the archive.
-// This provides supply-chain attack protection beyond SHA-256 checksums.
-func verifyGPGSignature(sigURL, archivePath, tmpDir string) error {
-	sigPath := tmpDir + "/archive.sig"
-	if err := downloadFile(sigURL, sigPath); err != nil {
-		return fmt.Errorf("download signature: %w", err)
-	}
-
-	// Verify the signature against the archive.
-	cmd := exec.Command("gpg", "--verify", sigPath, archivePath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("gpg --verify failed: %s", strings.TrimSpace(string(output)))
-	}
-	return nil
 }
 
 func withDefaults(opts Options) Options {

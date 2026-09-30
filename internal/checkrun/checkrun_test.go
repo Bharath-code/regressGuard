@@ -327,7 +327,7 @@ func TestRun_criticalScreen_statusChange(t *testing.T) {
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"check", "X", "regressions detected", "Commit blocked", "If this change is intentional: rg snapshot"} {
+	for _, want := range []string{"check", "X", "regressions detected", "Commit blocked", "A human must approve a baseline change"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("critical screen missing %q\nGot:\n%s", want, out)
 		}
@@ -636,8 +636,8 @@ func TestRun_snapshotAgeWarning_staleSnapshot(t *testing.T) {
 	if !strings.Contains(stderrStr, "Snapshot is 3d old") {
 		t.Errorf("expected stale snapshot warning on stderr, got: %s", stderrStr)
 	}
-	if !strings.Contains(stderrStr, "rg snapshot") {
-		t.Errorf("expected 'rg snapshot' suggestion in warning, got: %s", stderrStr)
+	if !strings.Contains(stderrStr, "A human should review") {
+		t.Errorf("expected human-review wording in warning, got: %s", stderrStr)
 	}
 
 	// Should not affect exit code — status should still be pass (not critical).
@@ -1048,5 +1048,102 @@ func TestHint_culpritBeyondFirstFiveChangedFiles(t *testing.T) {
 	hint := hintForFinding("GET /api/profile", gitChangedFiles(dir, strings.TrimSpace(string(base))))
 	if !strings.Contains(hint, "zz/api/profile/route.ts") {
 		t.Errorf("hint lost the culprit file, got %q", hint)
+	}
+}
+
+func TestNextCommand_neverSuggestsSnapshot(t *testing.T) {
+	for _, s := range []string{"critical", "warning", "pass"} {
+		if strings.Contains(nextCommand(s), "snapshot") {
+			t.Errorf("nextCommand(%q) must not suggest re-baselining", s)
+		}
+	}
+}
+
+// --- T1.4: --base ---
+
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+func baseFixture(t *testing.T, serverStatus int) (dir string, key string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(serverStatus)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	dir = t.TempDir()
+	writeCfg(t, dir, config.Config{
+		Version: 1, TestCommand: makeTestScript(t, dir, 3, 0), ServerURL: srv.URL,
+		Routes: []config.Route{{Method: "GET", Path: "/api/health"}},
+	})
+	key = snapshot.RouteKey("GET", "/api/health")
+	return dir, key
+}
+
+func routeSnap(key string, status int) snapshot.Snapshot {
+	return snapshot.Snapshot{
+		Version: 1, CreatedAt: time.Now(), Tests: snapshot.TestSummary{Passed: 3},
+		Routes: map[string]snapshot.RouteRecord{key: {Method: "GET", Path: "/api/health", Status: status}},
+	}
+}
+
+func TestRun_base_tamperedWorkingSnapshotStillCritical(t *testing.T) {
+	dir, key := baseFixture(t, 500)
+	gitIn(t, dir, "init")
+	writeSnap(t, dir, routeSnap(key, 200))
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-m", "baseline")
+	writeSnap(t, dir, routeSnap(key, 500)) // agent re-records the regression
+
+	var out, errb bytes.Buffer
+	plain, err := Run(Options{ProjectRoot: dir, JSON: true, Stdout: &out, Stderr: &errb})
+	if err != nil || plain.Status == "critical" {
+		t.Fatalf("without --base the tampered baseline hides the regression; got %v %v", plain.Status, err)
+	}
+
+	out.Reset()
+	res, err := Run(Options{ProjectRoot: dir, JSON: true, Base: "HEAD", Stdout: &out, Stderr: &errb})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "critical" {
+		t.Fatalf("want critical with --base, got %s", res.Status)
+	}
+	types := map[string]bool{}
+	for _, f := range res.Results {
+		types[f.Type] = true
+	}
+	if !types[engine.TypeBaselineChanged] || !types[engine.TypeStatus] {
+		t.Errorf("want BASELINE_CHANGED and status findings, got %v", types)
+	}
+}
+
+func TestRun_base_unchangedBaselinePasses(t *testing.T) {
+	dir, key := baseFixture(t, 200)
+	gitIn(t, dir, "init")
+	writeSnap(t, dir, routeSnap(key, 200))
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-m", "baseline")
+	var out, errb bytes.Buffer
+	res, err := Run(Options{ProjectRoot: dir, JSON: true, Base: "HEAD", Stdout: &out, Stderr: &errb})
+	if err != nil || res.Status == "critical" {
+		t.Fatalf("got %v %v", res.Status, err)
+	}
+}
+
+func TestRun_base_noSnapshotAtRef(t *testing.T) {
+	dir, key := baseFixture(t, 200)
+	gitIn(t, dir, "init")
+	gitIn(t, dir, "commit", "--allow-empty", "-m", "init")
+	writeSnap(t, dir, routeSnap(key, 200))
+	var out, errb bytes.Buffer
+	_, err := Run(Options{ProjectRoot: dir, JSON: true, Base: "HEAD", Stdout: &out, Stderr: &errb})
+	if _, ok := err.(failures.Actionable); !ok || !strings.Contains(err.Error(), "no baseline at --base") {
+		t.Fatalf("want actionable no-baseline error, got %v", err)
 	}
 }

@@ -90,6 +90,12 @@ func Write(root string, snap Snapshot, redactFields ...[]string) error {
 		snap = redactSnapshot(snap, redactFields[0])
 	}
 
+	// Keep the committed file byte-stable: if the contract is unchanged, leave
+	// it alone so timing/timestamp jitter never produces a PR diff.
+	if old, err := Load(root); err == nil && sameContract(old, snap) {
+		return nil
+	}
+
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
@@ -106,6 +112,33 @@ func Write(root string, snap Snapshot, redactFields ...[]string) error {
 	}
 
 	return nil
+}
+
+// sameContract compares everything except timestamps, commit and timings.
+func sameContract(a, b Snapshot) bool {
+	if a.Version != b.Version || len(a.Routes) != len(b.Routes) {
+		return false
+	}
+	at, bt := a.Tests, b.Tests
+	at.DurationMs, bt.DurationMs = 0, 0
+	ja, _ := json.Marshal(at)
+	jb, _ := json.Marshal(bt)
+	if string(ja) != string(jb) {
+		return false
+	}
+	for k, ra := range a.Routes {
+		rb, ok := b.Routes[k]
+		if !ok {
+			return false
+		}
+		ra.MS, rb.MS = 0, 0
+		ja, _ = json.Marshal(ra)
+		jb, _ = json.Marshal(rb)
+		if string(ja) != string(jb) {
+			return false
+		}
+	}
+	return true
 }
 
 // redactSnapshot returns a copy of the snapshot with specified field names

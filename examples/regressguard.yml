@@ -6,6 +6,13 @@
 #   2. Commit .regressguard/config.json and .regressguard/snapshot.json.
 #   3. Ensure your project's dependencies are installed in the workflow.
 #
+# Require a human to approve baseline changes:
+#   The action runs `rg check --base origin/<PR base>`, so a PR that edits
+#   .regressguard/snapshot.json to hide a regression still fails (CRITICAL +
+#   BASELINE_CHANGED). Add a CODEOWNERS rule so baseline edits need review:
+#       /.regressguard/snapshot.json  @your-handle
+#   and enable "Require review from Code Owners" in branch protection.
+#
 # How it works:
 #   - The action reads serverUrl and serverCommand from your .regressguard/config.json.
 #   - If server-command is provided here, it overrides the config value.
@@ -22,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # lets --base read the snapshot at the PR base ref
 
       - uses: actions/setup-node@v4
         with:
