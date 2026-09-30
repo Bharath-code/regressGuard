@@ -35,7 +35,7 @@ jobs:
       # Override server-command and server-url below only if your CI setup
       # differs from local development (e.g. different port, different start script).
       - name: Run RegressGuard
-        uses: Bharath-code/regressguard@v1
+        uses: Bharath-code/regressguard@v0
         with:
           # server-command: "npm run dev"       # defaults to serverCommand in config.json
           # server-url: "http://localhost:3000"  # defaults to serverUrl in config.json
