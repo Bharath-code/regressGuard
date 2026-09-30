@@ -44,7 +44,7 @@ const (
 
 // animationsEnabled gates optional motion effects: staggered reveal, slide-in
 // table rows, success/critical reveals, and the live route-progress table. Off
-// by default so rg renders instantly; opt in with `rg check --celebrate`.
+// by default so regressguard renders instantly; opt in with `regressguard check --celebrate`.
 var animationsEnabled bool
 
 // SetAnimations toggles optional motion effects. Call once at startup before

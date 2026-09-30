@@ -1,4 +1,4 @@
-// Package statusrun implements the rg status command.
+// Package statusrun implements the regressguard status command.
 // It provides a sub-second health check showing snapshot age, route count,
 // config health, and hook status without running tests or hitting routes.
 package statusrun
@@ -24,7 +24,7 @@ type Options struct {
 	Stderr      io.Writer
 }
 
-// Result is the machine-readable outcome of rg status.
+// Result is the machine-readable outcome of regressguard status.
 type Result struct {
 	Status         string `json:"status"`
 	ConfigExists   bool   `json:"configExists"`
@@ -117,13 +117,13 @@ func writeHuman(w io.Writer, result Result) error {
 	// Next suggestion.
 	if !result.SnapshotExists {
 		lines = append(lines, "", ui.Paint(w, ui.ColorBold, "Next:"))
-		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "rg snapshot"))
+		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "regressguard snapshot"))
 	} else if result.SnapshotStale {
 		lines = append(lines, "", ui.Paint(w, ui.ColorBold, "Next:"))
-		lines = append(lines, "  A human should review and refresh the baseline (rg snapshot, reviewed in PR)")
+		lines = append(lines, "  A human should review and refresh the baseline (regressguard snapshot, reviewed in PR)")
 	} else if !result.HookInstalled {
 		lines = append(lines, "", ui.Paint(w, ui.ColorBold, "Next:"))
-		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "rg hook install")+" (protect every commit)")
+		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "regressguard hook install")+" (protect every commit)")
 	}
 
 	for _, line := range lines {
@@ -141,7 +141,7 @@ func writeUnconfigured(w io.Writer) error {
 		ui.Paint(w, ui.ColorWarn, ui.SymbolWarning) + " Not configured",
 		"",
 		ui.Paint(w, ui.ColorBold, "Next:"),
-		"  " + ui.Paint(w, ui.ColorInfo, "rg init"),
+		"  " + ui.Paint(w, ui.ColorInfo, "regressguard init"),
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(w, line); err != nil {
@@ -163,7 +163,7 @@ func hookInstalled(root string) bool {
 	if err != nil {
 		return false
 	}
-	return len(data) > 0 && contains(string(data), "rg check") || contains(string(data), "regressguard")
+	return len(data) > 0 && contains(string(data), "regressguard check") || contains(string(data), "regressguard")
 }
 
 func contains(s, substr string) bool {

@@ -6,19 +6,19 @@ Five workflow improvements that reduce friction between installing RegressGuard 
 
 ## Features Implemented
 
-### W1: Zero-Config First Run (`rg quickstart`)
+### W1: Zero-Config First Run (`regressguard quickstart`)
 
-**Problem:** New users had to run `rg init` then `rg snapshot` as separate steps. If they forgot the server URL flag in non-interactive mode, they'd get an error.
+**Problem:** New users had to run `regressguard init` then `regressguard snapshot` as separate steps. If they forgot the server URL flag in non-interactive mode, they'd get an error.
 
-**Solution:** `rg quickstart` chains init + snapshot in one command. It auto-detects everything (framework, test command, routes) and takes a snapshot immediately.
+**Solution:** `regressguard quickstart` chains init + snapshot in one command. It auto-detects everything (framework, test command, routes) and takes a snapshot immediately.
 
 **Usage:**
 ```bash
 # In a Next.js/Express project with dev server running:
-rg quickstart
+regressguard quickstart
 
 # With explicit server URL:
-rg quickstart --server-url http://localhost:3000
+regressguard quickstart --server-url http://localhost:3000
 ```
 
 **How it works:** Calls `initrun.Run()` with `--yes` (non-interactive, auto-detect) followed by `snapshotrun.Run()`. If init fails (e.g., server not reachable), it surfaces the actionable error immediately.
@@ -27,9 +27,9 @@ rg quickstart --server-url http://localhost:3000
 
 ### W2: Git Hook Auto-Install on Init
 
-**Problem:** After `rg init`, users had to remember to run `rg hook install` separately. Many never did, missing the core protection.
+**Problem:** After `regressguard init`, users had to remember to run `regressguard hook install` separately. Many never did, missing the core protection.
 
-**Solution:** In interactive mode, `rg init` now prompts "Install pre-commit hook?" after writing the config. If the user accepts, the hook is installed immediately.
+**Solution:** In interactive mode, `regressguard init` now prompts "Install pre-commit hook?" after writing the config. If the user accepts, the hook is installed immediately.
 
 **Behavior:**
 - Only shown in interactive mode (TTY with no `--yes` flag)
@@ -42,9 +42,9 @@ rg quickstart --server-url http://localhost:3000
 
 ### W3: Snapshot Auto-Refresh
 
-**Problem:** Users who ran `rg check` daily would get "Snapshot is 3d old" warnings repeatedly, even when everything was passing. This trained them to ignore the warning.
+**Problem:** Users who ran `regressguard check` daily would get "Snapshot is 3d old" warnings repeatedly, even when everything was passing. This trained them to ignore the warning.
 
-**Solution:** When `rg check` passes AND the snapshot is older than 24 hours, the snapshot is silently refreshed using the current check results. A subtle note appears on stderr.
+**Solution:** When `regressguard check` passes AND the snapshot is older than 24 hours, the snapshot is silently refreshed using the current check results. A subtle note appears on stderr.
 
 **Behavior:**
 - Only triggers on `pass` status (not warning or critical)
@@ -59,7 +59,7 @@ rg quickstart --server-url http://localhost:3000
 
 **Problem:** Static route discovery (scanning `app/api/` or Express patterns) misses routes that are only referenced in test files. Users had to manually add these to config.
 
-**Solution:** `rg init` now also scans test files (`.test.ts`, `.spec.ts`, etc.) for route assertions like `fetch("/api/users")` or `.get("/api/health")`. Discovered routes are merged with statically-discovered ones.
+**Solution:** `regressguard init` now also scans test files (`.test.ts`, `.spec.ts`, etc.) for route assertions like `fetch("/api/users")` or `.get("/api/health")`. Discovered routes are merged with statically-discovered ones.
 
 **Patterns matched:**
 - `fetch("/api/...")` → GET
@@ -77,16 +77,16 @@ rg quickstart --server-url http://localhost:3000
 
 ---
 
-### W6: `rg snapshot --accept`
+### W6: `regressguard snapshot --accept`
 
-**Problem:** After an intentional schema change, users had to run a full `rg snapshot` (which re-runs the entire test suite) just to accept the new route responses. This was slow and unnecessary.
+**Problem:** After an intentional schema change, users had to run a full `regressguard snapshot` (which re-runs the entire test suite) just to accept the new route responses. This was slow and unnecessary.
 
-**Solution:** `rg snapshot --accept` re-hits only routes and updates the existing snapshot without re-running tests. It's 2-5x faster than a full snapshot.
+**Solution:** `regressguard snapshot --accept` re-hits only routes and updates the existing snapshot without re-running tests. It's 2-5x faster than a full snapshot.
 
 **Usage:**
 ```bash
-# After rg check shows an intentional change:
-rg snapshot --accept
+# After regressguard check shows an intentional change:
+regressguard snapshot --accept
 ```
 
 **How it works:**
@@ -99,9 +99,9 @@ rg snapshot --accept
 7. Archives to history
 
 **When to use:**
-- After `rg check` reports a CRITICAL that you know is intentional
+- After `regressguard check` reports a CRITICAL that you know is intentional
 - When you only changed API responses (not test behavior)
-- When you want a faster alternative to full `rg snapshot`
+- When you want a faster alternative to full `regressguard snapshot`
 
 ---
 

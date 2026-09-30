@@ -1,5 +1,5 @@
 name: "RegressGuard Check"
-description: "Run rg check on PRs and post a comment with regression results"
+description: "Run regressguard check on PRs and post a comment with regression results"
 author: "Bharath-code"
 
 branding:
@@ -24,7 +24,7 @@ inputs:
     required: false
     default: "30"
   working-directory:
-    description: "Directory to run rg check in (default: repo root)"
+    description: "Directory to run regressguard check in (default: repo root)"
     required: false
     default: "."
   post-comment:
@@ -60,8 +60,7 @@ runs:
     - name: Install RegressGuard
       shell: bash
       run: |
-        # Pin the install dir and use the absolute path everywhere below:
-        # GitHub runners ship ripgrep as `rg`, so bare `rg` is unreliable.
+        # Pin the install dir and use the absolute path everywhere below.
         export RG_INSTALL_DIR="${RG_INSTALL_DIR:-/usr/local/bin}"
         VERSION="${{ inputs.version }}"
         if [ "$VERSION" = "latest" ]; then
@@ -69,7 +68,7 @@ runs:
         else
           curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh -s -- --version "$VERSION"
         fi
-        RG_BIN="$RG_INSTALL_DIR/rg"
+        RG_BIN="$RG_INSTALL_DIR/regressguard"
         if [ ! -x "$RG_BIN" ]; then
           echo "::error::RegressGuard binary not found at $RG_BIN after install"
           exit 1
@@ -131,7 +130,7 @@ runs:
         done
         echo "Server ready at $SERVER_URL (${ELAPSED}s)"
 
-    - name: Run rg check
+    - name: Run regressguard check
       id: check
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -170,7 +169,7 @@ runs:
         echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
 
         # Save full result for comment step.
-        echo "$RESULT" > /tmp/rg-result.json
+        echo "$RESULT" > /tmp/regressguard-result.json
 
         echo "RegressGuard: status=$STATUS critical=$CRITICAL warnings=$WARNINGS passed=$PASSED"
 
@@ -210,7 +209,7 @@ runs:
 
         # Add findings if any.
         if [ "$STATUS" = "critical" ] || [ "$STATUS" = "warning" ]; then
-          FINDINGS=$(cat /tmp/rg-result.json | jq -r '.results[]? | "| \(.severity) | \(.route // "tests") | \(.message) |"' 2>/dev/null | head -10)
+          FINDINGS=$(cat /tmp/regressguard-result.json | jq -r '.results[]? | "| \(.severity) | \(.route // "tests") | \(.message) |"' 2>/dev/null | head -10)
           if [ -n "$FINDINGS" ]; then
             BODY="${BODY}
 
@@ -225,7 +224,7 @@ runs:
         BODY="${BODY}
 
         ---
-        *Run \`rg check --verbose\` locally for full details.*"
+        *Run \`regressguard check --verbose\` locally for full details.*"
 
         # Post or update comment.
         PR_NUMBER="${{ github.event.pull_request.number }}"

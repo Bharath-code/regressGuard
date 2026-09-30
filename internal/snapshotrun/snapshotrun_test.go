@@ -59,8 +59,8 @@ func TestRun_missingConfig(t *testing.T) {
 	if _, ok := err.(failures.Actionable); !ok {
 		t.Errorf("expected failures.Actionable, got %T: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "rg init") {
-		t.Errorf("error should mention 'rg init', got: %v", err)
+	if !strings.Contains(err.Error(), "regressguard init") {
+		t.Errorf("error should mention 'regressguard init', got: %v", err)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestRun_humanOutput(t *testing.T) {
 	}
 
 	out := stdout.String()
-	checks := []string{"snapshot", "Tests", "Routes", "Schemas", "Saved:", "rg check"}
+	checks := []string{"snapshot", "Tests", "Routes", "Schemas", "Saved:", "regressguard check"}
 	for _, want := range checks {
 		if !strings.Contains(out, want) {
 			t.Errorf("human output missing %q\nGot:\n%s", want, out)

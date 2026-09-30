@@ -252,7 +252,7 @@ func TestCheckHandler_critical_neverSuggestsRebaseline(t *testing.T) {
 	if !strings.Contains(text, "critical") {
 		t.Fatalf("expected a critical result, got: %s", text)
 	}
-	if strings.Contains(strings.ToLower(text), "rg snapshot") {
+	if strings.Contains(strings.ToLower(text), "regressguard snapshot") {
 		t.Errorf("agent-facing check output must not suggest re-recording the baseline:\n%s", text)
 	}
 }
@@ -277,7 +277,7 @@ func TestCheckHandler_unreadableSnapshot_neverSuggestsRebaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected transport error: %v", err)
 	}
-	if text := resultText(t, res); !strings.Contains(text, "unreadable") || strings.Contains(strings.ToLower(text), "rg snapshot") {
+	if text := resultText(t, res); !strings.Contains(text, "unreadable") || strings.Contains(strings.ToLower(text), "regressguard snapshot") {
 		t.Errorf("unreadable-baseline error must not hand the agent the re-record command:\n%s", text)
 	}
 }

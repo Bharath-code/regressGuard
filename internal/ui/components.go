@@ -88,12 +88,12 @@ func Footer(w io.Writer, elapsed time.Duration) string {
 // FooterWithVersion renders footer with version info.
 func FooterWithVersion(w io.Writer, elapsed time.Duration, version string) string {
 	if !ColorEnabled(w) {
-		return fmt.Sprintf("Done in %s  rg %s", formatDuration(elapsed), version)
+		return fmt.Sprintf("Done in %s  regressguard %s", formatDuration(elapsed), version)
 	}
 	timing := timingStyle.Render(fmt.Sprintf("Done in %s", formatDuration(elapsed)))
 	ver := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#30363D")).
-		Render("  rg " + version)
+		Render("  regressguard " + version)
 	return timing + ver
 }
 

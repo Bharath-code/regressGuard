@@ -16,11 +16,11 @@ check → status                  # see "Agent-native verification (MCP)" below
                                  # the baseline stays yours: agents cannot re-record it
 
 # Human / CI (also works): two commands, no test-writing, under 15 seconds
-rg snapshot   # record the known-good state
-rg check      # compare after edits — see what broke
+regressguard snapshot   # record the known-good state
+regressguard check      # compare after edits — see what broke
 ```
 
-![RegressGuard demo: an AI agent breaks an API contract, rg check blocks the commit and names the culprit file, the agent fixes it, check goes green](demo/demo.gif)
+![RegressGuard demo: an AI agent breaks an API contract, regressguard check blocks the commit and names the culprit file, the agent fixes it, check goes green](demo/demo.gif)
 
 *Break → detect → fix → green. Reproduce it yourself: `./demo/demo.sh`.*
 
@@ -34,23 +34,16 @@ rg check      # compare after edits — see what broke
 curl -fsSL https://raw.githubusercontent.com/Bharath-code/regressguard/main/install.sh | sh
 ```
 
-**Homebrew**
-
-```sh
-brew install Bharath-code/tap/rg
-```
-
 **Verify**
 
 ```sh
-rg version   # first line must say "RegressGuard"
+regressguard version   # first line must say "RegressGuard"
 ```
 
-> **Have ripgrep installed?** ripgrep also ships as `rg`, and whichever comes first on
-> PATH wins — `rg check` could silently run ripgrep instead of RegressGuard. If
-> `rg version` doesn't say "RegressGuard", invoke the full path (e.g.
-> `/usr/local/bin/rg`). The pre-commit hook and GitHub Action already use absolute
-> paths and are unaffected; `rg doctor` flags the collision.
+> **Upgrading from v0.1.x?** The binary was renamed from `rg` to `regressguard` because `rg`
+> collides with ripgrep. There is no `rg` shim and the old `rg upgrade` can't fetch v0.2.0:
+> re-run the installer, delete the old `rg`, then run `regressguard hook install`
+> (old hooks call `rg`; `regressguard doctor` flags them).
 
 ---
 
@@ -60,7 +53,7 @@ rg version   # first line must say "RegressGuard"
 
 ```sh
 cd your-project
-rg init
+regressguard init
 ```
 
 RegressGuard detects your test command, framework, and dev server URL automatically.
@@ -70,7 +63,7 @@ RegressGuard detects your test command, framework, and dev server URL automatica
 Make sure your dev server is running, then:
 
 ```sh
-rg snapshot
+regressguard snapshot
 ```
 
 Output:
@@ -87,7 +80,7 @@ Saved:
 
 Next:
   Ask your AI agent to make the code change, then run:
-  rg check
+  regressguard check
 ```
 
 ### 3. Run your AI agent
@@ -97,7 +90,7 @@ Let Claude Code, Cursor, or Codex make its changes.
 ### 4. Check for regressions before committing
 
 ```sh
-rg check
+regressguard check
 ```
 
 **Clean — safe to commit:**
@@ -135,7 +128,7 @@ Changed files since snapshot:
   internal/auth/session.go
 
 Next:
-  rg check --verbose
+  regressguard check --verbose
   git diff
 
 Commit blocked.
@@ -148,10 +141,10 @@ Exit code `1` on critical — works with git hooks and CI.
 ## Git Hook (auto-protect every commit)
 
 ```sh
-rg hook install
+regressguard hook install
 ```
 
-Now `rg check` runs automatically before every `git commit`. When a critical regression is detected, the commit is blocked with a compact output:
+Now `regressguard check` runs automatically before every `git commit`. When a critical regression is detected, the commit is blocked with a compact output:
 
 ```
 RegressGuard pre-commit
@@ -160,7 +153,7 @@ X 1 regression detected
   POST /api/user/update status changed from 200 to 500
 
 Run:
-  rg check --verbose
+  regressguard check --verbose
 
 Commit blocked. Use --no-verify only if you accept the risk.
 ```
@@ -171,12 +164,12 @@ Bypass with `git commit --no-verify` only when you accept the risk.
 
 ## Agent-native verification (MCP)
 
-This is RegressGuard's primary mode. Instead of waiting for a human to run `rg check`, the AI agent calls it **as a tool inside its own edit loop** — so it catches and fixes regressions it just introduced, before handing the change back to you.
+This is RegressGuard's primary mode. Instead of waiting for a human to run `regressguard check`, the AI agent calls it **as a tool inside its own edit loop** — so it catches and fixes regressions it just introduced, before handing the change back to you.
 
 Start the server (stdio transport):
 
 ```sh
-rg mcp serve
+regressguard mcp serve
 ```
 
 **Register with Claude Code:**
@@ -205,14 +198,14 @@ The agent then has two tools:
 **The baseline is human-owned.** Agents get no `snapshot` tool by default. If they
 could re-record the baseline, an agent could accept its own regression
 (`check` fails → `snapshot` → `check` passes). You record the baseline with
-`rg snapshot`. To let agents re-baseline anyway, set this in
+`regressguard snapshot`. To let agents re-baseline anyway, set this in
 `.regressguard/config.json` and restart the MCP server:
 
 ```json
 { "mcp": { "allowSnapshot": true } }
 ```
 
-Tool responses are the **same machine-readable payload as `rg check --json`** — see [`docs/json-contract.md`](docs/json-contract.md). Every tool call is recorded to an append-only audit log under `.regressguard/` (tool, status, duration, timestamp).
+Tool responses are the **same machine-readable payload as `regressguard check --json`** — see [`docs/json-contract.md`](docs/json-contract.md). Every tool call is recorded to an append-only audit log under `.regressguard/` (tool, status, duration, timestamp).
 
 A typical loop: the agent edits code → calls `check` → reads the structured findings → fixes the regression → calls `check` again → only then reports done.
 
@@ -222,24 +215,24 @@ A typical loop: the agent edits code → calls `check` → reads the structured 
 
 | Command | Purpose |
 |---|---|
-| `rg init` | Configure RegressGuard for this project |
-| `rg quickstart` | Auto-configure and snapshot in one command |
-| `rg snapshot` | Record the current passing state |
-| `rg check` | Compare current state against the snapshot |
-| `rg status` | Sub-second health check (snapshot age, routes, hook) — no tests run |
-| `rg explain <route>` | Show before/after diff for a specific route |
-| `rg watch` | Watch files and auto-run check on changes |
-| `rg mcp serve` | Run the MCP server so AI agents can self-verify (see above) |
-| `rg hook install` | Install the pre-commit git hook |
-| `rg hook uninstall` | Remove the git hook |
-| `rg config get <key>` | Read a config value |
-| `rg config set <key> <value>` | Write a config value |
-| `rg doctor` | Diagnose setup issues |
-| `rg upgrade` | Update rg to the latest version |
-| `rg completion <shell>` | Generate shell autocompletions (bash, zsh, fish) |
-| `rg version` | Print version and build metadata |
+| `regressguard init` | Configure RegressGuard for this project |
+| `regressguard quickstart` | Auto-configure and snapshot in one command |
+| `regressguard snapshot` | Record the current passing state |
+| `regressguard check` | Compare current state against the snapshot |
+| `regressguard status` | Sub-second health check (snapshot age, routes, hook) — no tests run |
+| `regressguard explain <route>` | Show before/after diff for a specific route |
+| `regressguard watch` | Watch files and auto-run check on changes |
+| `regressguard mcp serve` | Run the MCP server so AI agents can self-verify (see above) |
+| `regressguard hook install` | Install the pre-commit git hook |
+| `regressguard hook uninstall` | Remove the git hook |
+| `regressguard config get <key>` | Read a config value |
+| `regressguard config set <key> <value>` | Write a config value |
+| `regressguard doctor` | Diagnose setup issues |
+| `regressguard upgrade` | Update regressguard to the latest version |
+| `regressguard completion <shell>` | Generate shell autocompletions (bash, zsh, fish) |
+| `regressguard version` | Print version and build metadata |
 
-Run `rg <command> --help` for flags, examples, and exit codes.
+Run `regressguard <command> --help` for flags, examples, and exit codes.
 
 ---
 
@@ -275,9 +268,9 @@ Config lives in `.regressguard/config.json` (human-readable, git-ignoreable).
 
 ## How it works
 
-1. `rg snapshot` runs your test suite and hits each configured route. It records pass/fail counts, HTTP status codes, and a normalized schema hash for each response.
+1. `regressguard snapshot` runs your test suite and hits each configured route. It records pass/fail counts, HTTP status codes, and a normalized schema hash for each response.
 
-2. `rg check` reruns the same tests and routes, then diffs against the snapshot:
+2. `regressguard check` reruns the same tests and routes, then diffs against the snapshot:
    - **CRITICAL**: test suite newly failing, status code changed, response schema changed (e.g. field removed/added/changed)
    - **WARNING**: response time increased >200ms and >50% of baseline
    - **PASS**: everything within acceptable variance
@@ -295,7 +288,7 @@ Config lives in `.regressguard/config.json` (human-readable, git-ignoreable).
 
 These are deliberate trade-offs in v1 — favoring zero false positives over exhaustive detection. They are on the roadmap, not accidental:
 
-- **Test identity comparison is best-effort.** `rg check` records failing test *names* (jest, vitest, bun, go test output) and flags a CRITICAL when a test that passed at baseline starts failing — even if the net failure count is unchanged. When names cannot be parsed from your runner's output (or the baseline predates name recording), it falls back to count comparison: a CRITICAL only when the number of failing tests *increases*. Pair `rg check` with your normal test runner in CI for exhaustive per-test assertions.
+- **Test identity comparison is best-effort.** `regressguard check` records failing test *names* (jest, vitest, bun, go test output) and flags a CRITICAL when a test that passed at baseline starts failing — even if the net failure count is unchanged. When names cannot be parsed from your runner's output (or the baseline predates name recording), it falls back to count comparison: a CRITICAL only when the number of failing tests *increases*. Pair `regressguard check` with your normal test runner in CI for exhaustive per-test assertions.
 - **Array schemas are inferred from the first element.** The schema normalizer represents a JSON array's shape using its first element. If later elements have a different shape (heterogeneous arrays), that divergence is not reflected in the schema hash and will not be flagged.
 
 ---
@@ -314,16 +307,16 @@ These are deliberate trade-offs in v1 — favoring zero false positives over exh
 
 ```sh
 # JSON output for scripts and agents
-rg check --json | jq .status
+regressguard check --json | jq .status
 
 # Verbose diagnostics on stderr (stdout stays clean JSON)
-rg check --json --verbose
+regressguard check --json --verbose
 
 # Disable color for CI
-NO_COLOR=1 rg check
+NO_COLOR=1 regressguard check
 ```
 
-**GitHub Action** — runs `rg check` on every PR and comments the findings:
+**GitHub Action** — runs `regressguard check` on every PR and comments the findings:
 
 ```yaml
 - uses: Bharath-code/regressguard@v0
@@ -331,13 +324,13 @@ NO_COLOR=1 rg check
     server-command: npm run dev
 ```
 
-On pull requests the action compares against the snapshot committed on the base branch (`rg check --base origin/main`), so a PR that edits `.regressguard/snapshot.json` to hide a regression still fails. Require a human approval when the baseline changes with a CODEOWNERS rule:
+On pull requests the action compares against the snapshot committed on the base branch (`regressguard check --base origin/main`), so a PR that edits `.regressguard/snapshot.json` to hide a regression still fails. Require a human approval when the baseline changes with a CODEOWNERS rule:
 
 ```
 /.regressguard/snapshot.json  @your-handle
 ```
 
-Commit `.regressguard/snapshot.json` (`rg init` adds `.regressguard/*` + `!.regressguard/snapshot.json` to `.gitignore`); everything else in `.regressguard/` stays local.
+Commit `.regressguard/snapshot.json` (`regressguard init` adds `.regressguard/*` + `!.regressguard/snapshot.json` to `.gitignore`); everything else in `.regressguard/` stays local.
 
 See [`action.yml`](action.yml) for all inputs (version pinning, working directory, server URL).
 

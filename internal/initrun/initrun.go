@@ -149,7 +149,7 @@ func Run(opts Options) (Result, error) {
 		ServerURL:       serverURL,
 		ServerReachable: reachable,
 		Routes:          cfg.Routes,
-		Next:            "rg snapshot",
+		Next:            "regressguard snapshot",
 	}
 	if opts.JSON {
 		return result, writeJSON(opts.Stdout, result)
@@ -405,7 +405,7 @@ func offerHookInstall(opts Options, projectRoot string) {
 	hookPath := filepath.Join(gitDir, "hooks", "pre-commit")
 	if data, err := os.ReadFile(hookPath); err == nil {
 		content := string(data)
-		if strings.Contains(content, "rg check") || strings.Contains(content, "regressguard") {
+		if strings.Contains(content, "regressguard check") || strings.Contains(content, "regressguard") {
 			return // already installed
 		}
 	}
@@ -415,7 +415,7 @@ func offerHookInstall(opts Options, projectRoot string) {
 		var install bool
 		err := huh.NewConfirm().
 			Title("Install pre-commit hook?").
-			Description("Automatically run rg check before every commit").
+			Description("Automatically run regressguard check before every commit").
 			Affirmative("Yes, install").
 			Negative("No, skip").
 			Value(&install).
@@ -428,7 +428,7 @@ func offerHookInstall(opts Options, projectRoot string) {
 		// Non-huh fallback: just print suggestion.
 		_, _ = fmt.Fprintln(opts.Stdout)
 		_, _ = fmt.Fprintln(opts.Stdout, ui.Paint(opts.Stdout, ui.ColorMuted, "Protect every commit:"))
-		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "rg hook install"))
+		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "regressguard hook install"))
 		return
 	}
 

@@ -7,7 +7,7 @@ case "$arch" in
   x86_64) arch=amd64 ;;
   aarch64|arm64) arch=arm64 ;;
 esac
-bin="$dir/bin/rg-$os-$arch"
+bin="$dir/bin/regressguard-$os-$arch"
 if [ ! -x "$bin" ]; then
   echo "regressguard: unsupported platform $os/$arch" >&2
   exit 2

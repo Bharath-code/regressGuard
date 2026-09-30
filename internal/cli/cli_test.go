@@ -25,7 +25,7 @@ func TestRootHelpIsCompact(t *testing.T) {
 		"Before you commit, know what broke.",
 		"Commands:",
 		"Start:",
-		"rg init",
+		"regressguard init",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("root help missing %q:\n%s", want, help)
@@ -71,7 +71,7 @@ func TestCommandHelpIncludesContractSections(t *testing.T) {
 }
 
 func TestJSONModeWritesOnlyJSONToStdout(t *testing.T) {
-	// Set up a temp dir with a valid config and snapshot so rg check --json
+	// Set up a temp dir with a valid config and snapshot so regressguard check --json
 	// runs through the real engine and produces valid JSON on stdout.
 	dir := t.TempDir()
 	chdir(t, dir)
@@ -163,12 +163,12 @@ func TestMissingSnapshotIsActionable(t *testing.T) {
 	}
 	message := err.Error()
 	for _, want := range []string{
-		"rg check failed: no snapshot found.",
+		"regressguard check failed: no snapshot found.",
 		"Likely cause:",
 		"Run:",
-		"rg snapshot",
+		"regressguard snapshot",
 		"Need more context:",
-		"rg check --help",
+		"regressguard check --help",
 	} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("missing %q in actionable error:\n%s", want, message)

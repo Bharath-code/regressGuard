@@ -90,7 +90,7 @@ func TestInstall_outputMentionsHookPath(t *testing.T) {
 	}
 
 	out := stdout.String()
-	for _, want := range []string{"OK", "pre-commit", "check", "Bypass", "--no-verify", "rg hook uninstall"} {
+	for _, want := range []string{"OK", "pre-commit", "check", "Bypass", "--no-verify", "regressguard hook uninstall"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("install output missing %q\nGot:\n%s", want, out)
 		}
@@ -219,7 +219,7 @@ func TestInstall_hookScriptBlocksOnExit1(t *testing.T) {
 
 	content := readHook(t, dir)
 
-	// The script must capture rg check exit code and block on 1.
+	// The script must capture regressguard check exit code and block on 1.
 	if !strings.Contains(content, "RG_EXIT=$?") {
 		t.Error("hook should capture check exit code")
 	}
@@ -244,8 +244,8 @@ func TestInstall_hookScriptUsesAbsolutePath(t *testing.T) {
 	}
 
 	content := readHook(t, dir)
-	if strings.Contains(content, "RG_HOOK=1 rg check") {
-		t.Error("hook should not use bare 'rg check' — must use absolute path")
+	if strings.Contains(content, "RG_HOOK=1 regressguard check") {
+		t.Error("hook should not use bare 'regressguard check' — must use absolute path")
 	}
 	hasAbsPath := strings.Contains(content, `RG_BIN="/`) || strings.Contains(content, `RG_BIN="regressguard"`)
 	if !hasAbsPath {
@@ -267,33 +267,13 @@ func TestInstall_hookScriptSanityChecksBinary(t *testing.T) {
 
 	content := readHook(t, dir)
 
-	// A stale or wrong binary (e.g. ripgrep) must fail LOUDLY, not fall
+	// A stale or wrong binary must fail LOUDLY, not fall
 	// through as exit 127 → commit allowed.
 	if !strings.Contains(content, "grep -q RegressGuard") {
 		t.Error("hook should verify the binary identifies as RegressGuard")
 	}
 	if !strings.Contains(content, "hook install") {
 		t.Error("sanity-check failure message should tell the user how to reinstall")
-	}
-}
-
-func TestInstall_warnsOnRipgrepConflict(t *testing.T) {
-	dir := makeGitDir(t)
-	var stdout bytes.Buffer
-
-	if _, err := Install(InstallOptions{
-		GitDir:      filepath.Join(dir, ".git"),
-		ProjectRoot: dir,
-		Stdout:      &stdout,
-	}); err != nil {
-		t.Fatalf("Install error: %v", err)
-	}
-
-	if isRipgrepOnPath() {
-		out := stdout.String()
-		if !strings.Contains(out, "ripgrep") {
-			t.Errorf("expected ripgrep conflict warning\nGot:\n%s", out)
-		}
 	}
 }
 

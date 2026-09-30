@@ -48,7 +48,7 @@ func TestRunWritesConfigForReachableDefaultServer(t *testing.T) {
 	if cfg.PackageManager != "npm" || cfg.Framework != "nextjs-app-router" || cfg.TestCommand != "npm test" {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
-	if !strings.Contains(stdout.String(), "Next:\n  rg snapshot") {
+	if !strings.Contains(stdout.String(), "Next:\n  regressguard snapshot") {
 		t.Fatalf("missing next step:\n%s", stdout.String())
 	}
 }
@@ -69,7 +69,7 @@ func TestRunNonInteractiveRequiresServerURLWhenDefaultUnreachable(t *testing.T) 
 	if err == nil {
 		t.Fatal("expected non-interactive server URL error")
 	}
-	if !strings.Contains(err.Error(), "rg init --server-url http://localhost:3000") {
+	if !strings.Contains(err.Error(), "regressguard init --server-url http://localhost:3000") {
 		t.Fatalf("missing rerun command:\n%s", err.Error())
 	}
 }
@@ -122,7 +122,7 @@ func TestRunDoesNotOverwriteWithoutYes(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected overwrite protection")
 	}
-	if !strings.Contains(err.Error(), "rg init --yes") {
+	if !strings.Contains(err.Error(), "regressguard init --yes") {
 		t.Fatalf("missing --yes next command:\n%s", err.Error())
 	}
 }

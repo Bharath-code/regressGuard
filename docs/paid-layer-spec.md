@@ -15,8 +15,8 @@ to an auditor. The free tool is the funnel; the paid layer is the system of reco
 
 | | Free (this repo, MIT) | Paid (hosted) |
 |---|---|---|
-| `rg snapshot` / `rg check` / `rg status` | ✓ | ✓ |
-| MCP server (`rg mcp serve`) + agent self-verification | ✓ | ✓ |
+| `regressguard snapshot` / `regressguard check` / `regressguard status` | ✓ | ✓ |
+| MCP server (`regressguard mcp serve`) + agent self-verification | ✓ | ✓ |
 | Git hook, `--since` scoping, `--auto-server` | ✓ | ✓ |
 | Local audit log + `--json` output | ✓ | ✓ |
 | Cross-repo / multi-agent **org dashboard** | — | ✓ |
@@ -30,7 +30,7 @@ Rule of thumb: anything that runs **on one machine for one repo** is free. Anyth
 ## Paid features (v1 scope)
 
 ### 1. Org dashboard
-A hosted view that ingests each `rg check --json` run (pushed by CI or the MCP server) and
+A hosted view that ingests each `regressguard check --json` run (pushed by CI or the MCP server) and
 shows, per org: repos under guard, pass/critical/warning trend over time, which agent/commit
 introduced a regression, and the current "is everything green" status. Answers a manager's
 question the CLI cannot: _"are our AI-generated changes regressing anything, across all our
@@ -50,7 +50,7 @@ shipping AI-authored code who must _prove_ a verification gate existed.
 
 ## Architecture sketch (non-binding)
 
-- **Ingest:** the existing `rg check --json` contract is the wire format. CI step or MCP
+- **Ingest:** the existing `regressguard check --json` contract is the wire format. CI step or MCP
   server `POST`s each run to a hosted endpoint with an org API key. No new client engine.
 - **Storage:** append-only run records keyed by org → repo → commit.
 - **Auth:** org API key for ingest; SSO for dashboard.

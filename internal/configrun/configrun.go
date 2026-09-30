@@ -1,4 +1,4 @@
-// Package configrun implements rg config get and rg config set.
+// Package configrun implements regressguard config get and regressguard config set.
 // It supports dotted paths for nested fields (e.g. auth.testToken).
 // Uses huh for interactive value input when value is omitted on TTY.
 package configrun
@@ -29,10 +29,10 @@ func Get(key string, root string, stdout io.Writer) error {
 	val, ok := getField(cfg, key)
 	if !ok {
 		return failures.Actionable{
-			Title:       fmt.Sprintf("rg config get failed: unknown key %q.", key),
+			Title:       fmt.Sprintf("regressguard config get failed: unknown key %q.", key),
 			Cause:       "This key does not exist in the config schema.",
-			Next:        "rg config --help",
-			MoreContext: "rg config get --help",
+			Next:        "regressguard config --help",
+			MoreContext: "regressguard config get --help",
 		}
 	}
 
@@ -68,19 +68,19 @@ func Set(key, value, root string, stdout io.Writer) error {
 		}
 	} else if value == "" {
 		return failures.Actionable{
-			Title:       fmt.Sprintf("rg config set failed: no value provided for %q.", key),
+			Title:       fmt.Sprintf("regressguard config set failed: no value provided for %q.", key),
 			Cause:       "The value argument is required in non-interactive mode.",
-			Next:        fmt.Sprintf("rg config set %s <value>", key),
-			MoreContext: "rg config set --help",
+			Next:        fmt.Sprintf("regressguard config set %s <value>", key),
+			MoreContext: "regressguard config set --help",
 		}
 	}
 
 	if !setField(&cfg, key, value) {
 		return failures.Actionable{
-			Title:       fmt.Sprintf("rg config set failed: unknown key %q.", key),
+			Title:       fmt.Sprintf("regressguard config set failed: unknown key %q.", key),
 			Cause:       "This key does not exist in the config schema.",
-			Next:        "rg config --help",
-			MoreContext: "rg config set --help",
+			Next:        "regressguard config --help",
+			MoreContext: "regressguard config set --help",
 		}
 	}
 
@@ -107,10 +107,10 @@ func configTheme() *huh.Theme {
 func loadConfig(root string) (config.Config, error) {
 	if !config.Exists(root) {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg config failed: no config found.",
+			Title:       "regressguard config failed: no config found.",
 			Cause:       "RegressGuard has not been initialized for this project.",
-			Next:        "rg init",
-			MoreContext: "rg config --help",
+			Next:        "regressguard init",
+			MoreContext: "regressguard config --help",
 		}
 	}
 	return config.Load(root)

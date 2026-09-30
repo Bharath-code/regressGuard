@@ -1,4 +1,4 @@
-// Package hookrun implements rg hook install and rg hook uninstall.
+// Package hookrun implements regressguard hook install and regressguard hook uninstall.
 // It manages a clearly-delimited block inside .git/hooks/pre-commit so it
 // composes safely with husky, lint-staged, and any other hook managers.
 package hookrun
@@ -16,21 +16,19 @@ import (
 
 const (
 	// blockBegin and blockEnd delimit the RegressGuard-managed section of the
-	// pre-commit hook. Everything between these markers is owned by rg.
+	// pre-commit hook. Everything between these markers is owned by regressguard.
 	blockBegin = "# --- RegressGuard begin ---"
 	blockEnd   = "# --- RegressGuard end ---"
 
 	// hookScript is the shell code injected between the markers.
-	// It runs rg check in hook mode and blocks the commit on exit code 1.
-	// The binary path is resolved at install time to avoid conflicts with
-	// ripgrep (which also installs as `rg`). The sanity check must fail
+	// It runs regressguard check in hook mode and blocks the commit on exit code 1.
+	// The binary path is resolved at install time. The sanity check must fail
 	// LOUDLY: a stale path would otherwise exit 127, which the exit-code
 	// branch below reads as "no regression" — the guard would fail open.
-	// `</dev/null` prevents ripgrep from hanging on stdin if it is ever hit.
 	hookScript = `RG_BIN="{{BIN}}"
 if ! "$RG_BIN" version </dev/null 2>/dev/null | grep -q RegressGuard; then
   echo "RegressGuard: binary missing or not RegressGuard at: $RG_BIN" >&2
-  echo "  Regression checks CANNOT run (is 'rg' resolving to ripgrep?)." >&2
+  echo "  Regression checks CANNOT run (is the path stale?)." >&2
   echo "  Fix: reinstall the hook with 'hook install' from the RegressGuard binary." >&2
   echo "  Bypass once (at your own risk): git commit --no-verify" >&2
   exit 1
@@ -47,10 +45,8 @@ fi`
 `
 )
 
-// resolveBinaryPath returns the absolute path to the RegressGuard binary.
-// It tries (in order): the running binary via os.Executable, `regressguard`
-// on PATH, and finally `rg` on PATH. If `rg` resolves to ripgrep, it falls
-// back to `regressguard` or the os.Executable path.
+// resolveBinaryPath returns the absolute path to the RegressGuard binary:
+// the running binary via os.Executable, else `regressguard` on PATH.
 func resolveBinaryPath() string {
 	if exe, err := os.Executable(); err == nil {
 		if abs, err := filepath.Abs(exe); err == nil {
@@ -61,34 +57,10 @@ func resolveBinaryPath() string {
 	if path, err := exec.LookPath("regressguard"); err == nil {
 		return path
 	}
-	if path, err := exec.LookPath("rg"); err == nil {
-		if !IsRipgrep(path) {
-			return path
-		}
-	}
 	return "regressguard"
 }
 
-// IsRipgrep checks whether the binary at path is ripgrep.
-func IsRipgrep(path string) bool {
-	cmd := exec.Command(path, "--version")
-	out, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(out), "ripgrep")
-}
-
-// isRipgrepOnPath checks whether `rg` on PATH is ripgrep.
-func isRipgrepOnPath() bool {
-	path, err := exec.LookPath("rg")
-	if err != nil {
-		return false
-	}
-	return IsRipgrep(path)
-}
-
-// InstallOptions configures rg hook install.
+// InstallOptions configures regressguard hook install.
 type InstallOptions struct {
 	// GitDir is the path to the .git directory. Defaults to ".git".
 	GitDir string
@@ -98,7 +70,7 @@ type InstallOptions struct {
 	Stderr      io.Writer
 }
 
-// UninstallOptions configures rg hook uninstall.
+// UninstallOptions configures regressguard hook uninstall.
 type UninstallOptions struct {
 	GitDir string
 	Stdout io.Writer
@@ -112,14 +84,6 @@ func Install(opts InstallOptions) (string, error) {
 	opts = installDefaults(opts)
 
 	hookPath := filepath.Join(opts.GitDir, "hooks", "pre-commit")
-
-	// Detect ripgrep conflict — warn the user.
-	if isRipgrepOnPath() {
-		_, _ = fmt.Fprintf(opts.Stdout, "%s ripgrep detected as `rg` on PATH.\n", ui.Paint(opts.Stdout, ui.ColorWarn, ui.SymbolWarning))
-		_, _ = fmt.Fprintf(opts.Stdout, "  The hook uses the absolute RegressGuard path — it is safe.\n")
-		_, _ = fmt.Fprintf(opts.Stdout, "  To run interactively, use the full binary path.\n")
-		_, _ = fmt.Fprintf(opts.Stdout, "\n")
-	}
 
 	// Detect hook managers and print guidance before writing.
 	if manager := detectHookManager(opts.ProjectRoot); manager != "" {
@@ -149,7 +113,7 @@ func Install(opts InstallOptions) (string, error) {
 	_, _ = fmt.Fprintf(opts.Stdout, "   %s\n", ui.Paint(opts.Stdout, ui.ColorMuted, hookPath))
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "Behavior:\n")
-	_, _ = fmt.Fprintf(opts.Stdout, "  rg check runs before every commit.\n")
+	_, _ = fmt.Fprintf(opts.Stdout, "  regressguard check runs before every commit.\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "  Critical regressions block the commit.\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "  Warnings allow the commit through.\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
@@ -157,7 +121,7 @@ func Install(opts InstallOptions) (string, error) {
 	_, _ = fmt.Fprintf(opts.Stdout, "  %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "git commit --no-verify"))
 	_, _ = fmt.Fprintf(opts.Stdout, "\n")
 	_, _ = fmt.Fprintf(opts.Stdout, "Uninstall:\n")
-	_, _ = fmt.Fprintf(opts.Stdout, "  %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "rg hook uninstall"))
+	_, _ = fmt.Fprintf(opts.Stdout, "  %s\n", ui.Paint(opts.Stdout, ui.ColorInfo, "regressguard hook uninstall"))
 
 	return hookPath, nil
 }
@@ -200,7 +164,7 @@ func Uninstall(opts UninstallOptions) error {
 }
 
 // managedBlock returns the full text of the RegressGuard-managed block.
-// The binary path is resolved at install time to avoid ripgrep conflicts.
+// The binary path is resolved at install time.
 func managedBlock() string {
 	binPath := resolveBinaryPath()
 	script := strings.ReplaceAll(hookScript, "{{BIN}}", binPath)
@@ -307,14 +271,14 @@ func hookManagerGuidance(manager, hookPath string) string {
 		return fmt.Sprintf(
 			"i Detected husky. RegressGuard will be added to %s.\n"+
 				"  If you use husky's own pre-commit file, also add:\n"+
-				"    rg check\n"+
+				"    regressguard check\n"+
 				"  to .husky/pre-commit so it runs in both contexts.",
 			hookPath,
 		)
 	case "lint-staged":
 		return fmt.Sprintf(
 			"i Detected lint-staged. RegressGuard block added to %s.\n"+
-				"  lint-staged runs inside the hook — rg check will run alongside it.",
+				"  lint-staged runs inside the hook — regressguard check will run alongside it.",
 			hookPath,
 		)
 	default:

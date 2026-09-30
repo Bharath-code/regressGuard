@@ -10,14 +10,14 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
 ┌─────────────────────────────────────────────────┐
 │  AI IDE (Claude Code / Cursor / Kiro)           │
 │                                                 │
-│  1. IDE spawns: rg mcp serve                    │
+│  1. IDE spawns: regressguard mcp serve                    │
 │  2. Communicates via stdin/stdout (JSON-RPC)    │
 │  3. Calls tools: check, status                  │
 │  4. Gets structured results back                │
 └────────────────┬────────────────────────────────┘
                  │ stdin/stdout (local process)
 ┌────────────────▼────────────────────────────────┐
-│  rg mcp serve (local process)                   │
+│  regressguard mcp serve (local process)                   │
 │                                                 │
 │  - Reads .regressguard/config.json              │
 │  - Reads .regressguard/snapshot.json            │
@@ -29,7 +29,7 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
 
 ## Step by step
 
-1. **User installs `rg`** on their machine (already done via curl/brew)
+1. **User installs `regressguard`** on their machine (already done via curl/brew)
 
 2. **User adds MCP config** to their IDE. For example in Kiro (`.kiro/settings/mcp.json`):
    ```json
@@ -43,7 +43,7 @@ The MCP server runs **on the developer's machine**, right next to their code. Th
    }
    ```
 
-3. **IDE spawns the process** — when the AI agent needs regression checking, the IDE starts `rg mcp serve` as a child process
+3. **IDE spawns the process** — when the AI agent needs regression checking, the IDE starts `regressguard mcp serve` as a child process
 
 4. **Communication happens over stdio** — the IDE writes JSON-RPC requests to the process's stdin, reads responses from stdout. No HTTP, no ports, no network.
 

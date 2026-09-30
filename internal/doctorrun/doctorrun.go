@@ -1,4 +1,4 @@
-// Package doctorrun implements rg doctor.
+// Package doctorrun implements regressguard doctor.
 // It verifies config, snapshot, test command, and dev server reachability.
 // Uses huh/spinner for a premium diagnostic experience on TTY.
 package doctorrun
@@ -17,7 +17,6 @@ import (
 
 	"github.com/Bharath-code/regressguard/internal/config"
 	"github.com/Bharath-code/regressguard/internal/engine"
-	"github.com/Bharath-code/regressguard/internal/hookrun"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 	"github.com/Bharath-code/regressguard/internal/ui"
 )
@@ -94,13 +93,13 @@ func runChecks(opts Options) bool {
 			if len(cfg.Routes) > 0 {
 				printPass(opts.Stdout, "Routes", fmt.Sprintf("%d configured", len(cfg.Routes)))
 			} else {
-				printWarn(opts.Stdout, "Routes", "none configured — rg snapshot will skip route checks")
+				printWarn(opts.Stdout, "Routes", "none configured — regressguard snapshot will skip route checks")
 			}
 
 			// 5. Auth token security check.
 			if config.LooksLikeSecret(cfg.Auth.TestToken) {
 				printWarn(opts.Stdout, "Auth token", "raw secret in config.json — use $ENV_VAR reference instead")
-				_, _ = fmt.Fprintf(opts.Stdout, "  Tip: rg config set auth.testToken \"$RG_TEST_TOKEN\"\n")
+				_, _ = fmt.Fprintf(opts.Stdout, "  Tip: regressguard config set auth.testToken \"$RG_TEST_TOKEN\"\n")
 				_, _ = fmt.Fprintf(opts.Stdout, "  Then: echo 'RG_TEST_TOKEN=your-token' >> .regressguard/.env\n")
 			}
 
@@ -123,7 +122,7 @@ func runChecks(opts Options) bool {
 		}
 	} else {
 		printFail(opts.Stdout, "Config", "not found")
-		_, _ = fmt.Fprintf(opts.Stdout, "  Run: rg init\n")
+		_, _ = fmt.Fprintf(opts.Stdout, "  Run: regressguard init\n")
 		allOK = false
 	}
 
@@ -140,7 +139,7 @@ func runChecks(opts Options) bool {
 			printPass(opts.Stdout, "Snapshot", fmt.Sprintf("version %d, %s old, commit %s", snap.Version, age, snap.GitCommit))
 		}
 	} else {
-		printWarn(opts.Stdout, "Snapshot", "not found — run rg snapshot before rg check")
+		printWarn(opts.Stdout, "Snapshot", "not found — run regressguard snapshot before regressguard check")
 	}
 
 	if snapshot.LegacyIgnore(opts.ProjectRoot) {
@@ -159,31 +158,29 @@ func runChecks(opts Options) bool {
 	if gitAvailable(opts.ProjectRoot) {
 		printPass(opts.Stdout, "Git", "available")
 	} else {
-		printWarn(opts.Stdout, "Git", "not available — git context in rg check will be skipped")
+		printWarn(opts.Stdout, "Git", "not available — git context in regressguard check will be skipped")
 	}
 
-	// 7. Binary name collision — ripgrep also installs as `rg`.
-	if path, err := exec.LookPath("rg"); err == nil && hookrun.IsRipgrep(path) {
-		printWarn(opts.Stdout, "rg on PATH", path+" is ripgrep — shell commands like `rg check` run ripgrep, not RegressGuard")
-		_, _ = fmt.Fprintf(opts.Stdout, "  Tip: invoke RegressGuard by absolute path (installed hooks already do)\n")
-	}
-
-	// 8. Stale pre-commit hook using bare `rg` — silently broken when ripgrep
-	// shadows the binary, which defeats the guard entirely.
+	// 7. Pre-commit hook from before the rg → regressguard rename. It calls the old
+	// binary name, which is missing or (if ripgrep is installed) the wrong tool,
+	// so the guard would fail open or run ripgrep.
 	hookPath := filepath.Join(opts.ProjectRoot, ".git", "hooks", "pre-commit")
-	if data, err := os.ReadFile(hookPath); err == nil && strings.Contains(string(data), "RG_HOOK=1 rg check") {
-		printFail(opts.Stdout, "Pre-commit hook", "uses bare 'rg' — runs ripgrep instead of RegressGuard if both are installed")
-		_, _ = fmt.Fprintf(opts.Stdout, "  Fix: rg hook install\n")
-		allOK = false
+	if data, err := os.ReadFile(hookPath); err == nil {
+		h := string(data)
+		if strings.Contains(h, "RG_HOOK=1 rg check") || strings.Contains(h, `/rg"`) {
+			printFail(opts.Stdout, "Pre-commit hook", "calls the old 'rg' binary — RegressGuard is now 'regressguard'")
+			_, _ = fmt.Fprintf(opts.Stdout, "  Fix: regressguard hook install\n")
+			allOK = false
+		}
 	}
 
 	_, _ = fmt.Fprintln(opts.Stdout)
 
 	if allOK {
-		_, _ = fmt.Fprintln(opts.Stdout, ui.Paint(opts.Stdout, ui.ColorOK, "All checks passed.")+" Ready to use rg snapshot and rg check.")
+		_, _ = fmt.Fprintln(opts.Stdout, ui.Paint(opts.Stdout, ui.ColorOK, "All checks passed.")+" Ready to use regressguard snapshot and regressguard check.")
 	} else {
 		_, _ = fmt.Fprintln(opts.Stdout, "Some checks failed. Fix the issues above, then rerun:")
-		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "rg doctor"))
+		_, _ = fmt.Fprintln(opts.Stdout, "  "+ui.Paint(opts.Stdout, ui.ColorInfo, "regressguard doctor"))
 	}
 
 	return allOK

@@ -2,12 +2,12 @@
 # Copy this file to your project's .github/workflows/ directory.
 #
 # Prerequisites:
-#   1. Run `rg init` and `rg snapshot` locally first.
+#   1. Run `regressguard init` and `regressguard snapshot` locally first.
 #   2. Commit .regressguard/config.json and .regressguard/snapshot.json.
 #   3. Ensure your project's dependencies are installed in the workflow.
 #
 # Require a human to approve baseline changes:
-#   The action runs `rg check --base origin/<PR base>`, so a PR that edits
+#   The action runs `regressguard check --base origin/<PR base>`, so a PR that edits
 #   .regressguard/snapshot.json to hide a regression still fails (CRITICAL +
 #   BASELINE_CHANGED). Add a CODEOWNERS rule so baseline edits need review:
 #       /.regressguard/snapshot.json  @your-handle

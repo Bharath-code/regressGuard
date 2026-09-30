@@ -22,17 +22,17 @@ This is the only test that drives a real dev server, real HTTP probes, and a
 real regression end to end.
 
 ```sh
-go build -o rg ./cmd/rg
+go build -o regressguard ./cmd/regressguard
 cd fixtures/nextjs-app && npm install && cd ../..
 ./demo/demo.sh
 ```
 
 What it proves, in order:
-1. `rg snapshot` records a passing baseline against a live server.
+1. `regressguard snapshot` records a passing baseline against a live server.
 2. A silent field removal (simulating an AI edit) is introduced.
-3. `rg check` blocks with a CRITICAL schema-change finding.
-4. `rg check --json` includes a `hint` naming the changed file.
-5. Reverting the edit makes `rg check` pass again.
+3. `regressguard check` blocks with a CRITICAL schema-change finding.
+4. `regressguard check --json` includes a `hint` naming the changed file.
+5. Reverting the edit makes `regressguard check` pass again.
 
 If any of those five don't happen, the core value prop is broken — fix before
 anything else. `fixtures/README.md` has the manual walkthrough (open the file
@@ -42,15 +42,15 @@ of the scripted version, plus an auth-regression variant (`/api/auth/verify`,
 
 ## 3. Pre-commit hook path
 
-The hook is a separate code path from `rg check` (it shells out with an
-absolute binary path to dodge the ripgrep-`rg` collision) — test it directly,
-don't assume `rg check` passing means the hook works.
+The hook is a separate code path from `regressguard check` (it shells out with an
+absolute binary path) — test it directly,
+don't assume `regressguard check` passing means the hook works.
 
 ```sh
 cd fixtures/nextjs-app
-rg hook install
+regressguard hook install
 git add . && git commit -m "test regression"   # should block if check fails
-rg hook uninstall
+regressguard hook uninstall
 ```
 
 ## 4. MCP path (the primary interface — don't skip this)
@@ -59,14 +59,14 @@ rg hook uninstall
 directly. Confirm the stdio transport actually works with a real client:
 
 ```sh
-rg mcp serve
+regressguard mcp serve
 ```
 
 ```sh
-claude mcp add regressguard -- /full/path/to/rg mcp serve
+claude mcp add regressguard -- /full/path/to/regressguard mcp serve
 ```
 
-Then run `rg snapshot` yourself (agents get no `snapshot` tool by default).
+Then run `regressguard snapshot` yourself (agents get no `snapshot` tool by default).
 In a Claude Code session against `fixtures/nextjs-app`, break something, ask
 it to call `check`, and confirm the JSON payload
 matches `docs/json-contract.md`. Check `.regressguard/audit.log` (or
@@ -76,13 +76,13 @@ equivalent) got an entry per call.
 
 - **Snapshot before the agent touches anything, not after.** The baseline is
   only "known-good" if it was captured before the edit. Get in the habit of
-  `rg snapshot` as the first command in a session, not a cleanup step.
+  `regressguard snapshot` as the first command in a session, not a cleanup step.
 - **Keep the dev server running during snapshot and check.** Both need to hit
   live routes; a stopped server means routes get skipped (or, since the
   zero-route fix, an explicit warning) instead of actually verified.
 - **Wire the MCP server into the agent's loop, not just the CLI.** The whole
   differentiator is the agent catching its own regression before you see the
-  diff — `rg check` run by a human after the fact is the fallback, not the
+  diff — `regressguard check` run by a human after the fact is the fallback, not the
   primary mode.
 - **Install the git hook as a backstop**, not the main check — it's the
   last line of defense for edits made outside an agent loop.
@@ -91,6 +91,6 @@ equivalent) got an entry per call.
   FastAPI aren't supported yet) — RegressGuard is running but not actually
   protecting anything. Add routes to `.regressguard/config.json` or file it
   as a gap, don't silently trust a "pass".
-- **Run `rg doctor` after any environment change** (new machine, ripgrep
-  installed, Node/Go upgrade) — it catches PATH collisions and stale hooks
+- **Run `regressguard doctor` after any environment change** (new machine,
+  Node/Go upgrade) — it catches stale hooks
   before they cause a false sense of safety.

@@ -10,6 +10,10 @@ versioning follows [SemVer](https://semver.org/).
 
 - `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
 
+### Changed (breaking)
+
+- **Binary renamed `rg` → `regressguard`** (no `rg` shim: it collided with ripgrep). Release archives are now `regressguard_<version>_<os>_<arch>.tar.gz`. Upgrading: re-run `install.sh` (an old `rg upgrade` cannot find the new archive name), delete the old `rg`, run `regressguard hook install` (hooks from v0.1.x call `rg`; `regressguard doctor` flags them). The installer never deletes the old binary, it only prints a note. The ripgrep PATH check in `doctor` and the hook's ripgrep fallback were removed. The Homebrew line was dropped from the README; the tap formula still carries the old name.
+
 ### Security
 
 - The guard no longer tells agents how to re-baseline. Unreadable/incompatible-baseline errors, `rg explain` and stale-baseline `rg status` hints now say a human must approve a baseline change; `next` in JSON/MCP output never names `snapshot`. (First-time "no snapshot found" still points at `rg snapshot`: there is no baseline to bypass yet.)

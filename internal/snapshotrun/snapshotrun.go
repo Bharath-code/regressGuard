@@ -1,4 +1,4 @@
-// Package snapshotrun implements the rg snapshot command.
+// Package snapshotrun implements the regressguard snapshot command.
 // It orchestrates test execution, route hitting, schema normalization,
 // and snapshot persistence, then renders the result following the
 // RegressGuard terminal design system (Section 6, Flow D).
@@ -35,7 +35,7 @@ type Options struct {
 	Stderr      io.Writer
 }
 
-// Result is the machine-readable outcome of rg snapshot.
+// Result is the machine-readable outcome of regressguard snapshot.
 type Result struct {
 	Status       string         `json:"status"`
 	SnapshotPath string         `json:"snapshotPath"`
@@ -80,7 +80,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// W6: --accept mode — re-hit only routes and update the existing snapshot
-	// without re-running the full test suite. Faster than a full rg snapshot.
+	// without re-running the full test suite. Faster than a full regressguard snapshot.
 	if opts.Accept {
 		return runAccept(opts, cfg)
 	}
@@ -118,10 +118,10 @@ func Run(opts Options) (Result, error) {
 	if testErr != nil {
 		// Surface as actionable — test command may be misconfigured.
 		return Result{}, failures.Actionable{
-			Title:       "rg snapshot failed: test command error.",
+			Title:       "regressguard snapshot failed: test command error.",
 			Cause:       testErr.Error(),
-			Next:        "rg config set testCommand \"npm test\"",
-			MoreContext: "rg snapshot --help",
+			Next:        "regressguard config set testCommand \"npm test\"",
+			MoreContext: "regressguard snapshot --help",
 		}
 	}
 	snap.Tests = snapshot.TestSummary{
@@ -228,10 +228,10 @@ func Run(opts Options) (Result, error) {
 	if serverDown {
 		if prev, err := snapshot.Load(opts.ProjectRoot); err == nil && len(prev.Routes) > 0 {
 			return Result{}, failures.Actionable{
-				Title:       "rg snapshot refused: dev server is not responding.",
+				Title:       "regressguard snapshot refused: dev server is not responding.",
 				Cause:       fmt.Sprintf("Saving now would replace a baseline of %d routes with 0 routes.", len(prev.Routes)),
-				Next:        "npm run dev && rg snapshot",
-				MoreContext: "rg doctor",
+				Next:        "npm run dev && regressguard snapshot",
+				MoreContext: "regressguard doctor",
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func Run(opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("save snapshot: %w", err)
 	}
 
-	// F4: archive snapshot to history for rg diff.
+	// F4: archive snapshot to history for regressguard diff.
 	if err := history.Archive(opts.ProjectRoot, snap); err != nil {
 		fmt.Fprintf(opts.Stderr, "%s Snapshot history archive failed: %v\n",
 			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
@@ -278,10 +278,10 @@ func Run(opts Options) (Result, error) {
 		},
 		Routes:     outcomes,
 		ServerDown: serverDown,
-		Next:       "rg check",
+		Next:       "regressguard check",
 	}
 	if serverDown {
-		result.Next = "npm run dev && rg snapshot"
+		result.Next = "npm run dev && regressguard snapshot"
 	}
 
 	// E3-T8: JSON output.
@@ -302,10 +302,10 @@ func loadConfig(root string) (config.Config, error) {
 	cfg, err := config.Load(root)
 	if err != nil {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg snapshot failed: config is invalid.",
+			Title:       "regressguard snapshot failed: config is invalid.",
 			Cause:       err.Error(),
-			Next:        "rg init --yes",
-			MoreContext: "rg snapshot --help",
+			Next:        "regressguard init --yes",
+			MoreContext: "regressguard snapshot --help",
 		}
 	}
 	if cfg.TestCommand == "" {
@@ -365,9 +365,9 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 	)
 
 	if serverDown {
-		lines = append(lines, ui.NextSection(stdout, "npm run dev", "rg snapshot")...)
+		lines = append(lines, ui.NextSection(stdout, "npm run dev", "regressguard snapshot")...)
 	} else {
-		lines = append(lines, ui.NextSection(stdout, "rg check")...)
+		lines = append(lines, ui.NextSection(stdout, "regressguard check")...)
 	}
 
 	// E11-T6: staggered reveal for result lines on TTY.
@@ -423,7 +423,7 @@ func showHookNudge(w io.Writer, projectRoot string) {
 	hookPath := filepath.Join(projectRoot, ".git", "hooks", "pre-commit")
 	if data, err := os.ReadFile(hookPath); err == nil {
 		content := string(data)
-		if strings.Contains(content, "rg check") || strings.Contains(content, "regressguard") {
+		if strings.Contains(content, "regressguard check") || strings.Contains(content, "regressguard") {
 			return // hook already installed, no nudge needed
 		}
 	}
@@ -437,7 +437,7 @@ func showHookNudge(w io.Writer, projectRoot string) {
 	// Show the nudge.
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, ui.Paint(w, ui.ColorMuted, "Protect every commit automatically:"))
-	_, _ = fmt.Fprintln(w, "  "+ui.Paint(w, ui.ColorInfo, "rg hook install"))
+	_, _ = fmt.Fprintln(w, "  "+ui.Paint(w, ui.ColorInfo, "regressguard hook install"))
 
 	// Mark as shown.
 	s.HookNudgeShown = true
@@ -445,25 +445,25 @@ func showHookNudge(w io.Writer, projectRoot string) {
 }
 
 // runAccept implements the --accept flow: re-hit routes and update the snapshot
-// without re-running the full test suite. This is faster than a full rg snapshot
+// without re-running the full test suite. This is faster than a full regressguard snapshot
 // and is intended for accepting intentional changes.
 func runAccept(opts Options, cfg config.Config) (Result, error) {
 	// Load existing snapshot — required for --accept.
 	if !snapshot.Exists(opts.ProjectRoot) {
 		return Result{}, failures.Actionable{
-			Title:       "rg snapshot --accept failed: no existing snapshot.",
+			Title:       "regressguard snapshot --accept failed: no existing snapshot.",
 			Cause:       "The --accept flag updates an existing snapshot. Run a full snapshot first.",
-			Next:        "rg snapshot",
-			MoreContext: "rg snapshot --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard snapshot --help",
 		}
 	}
 	existingSnap, err := snapshot.Load(opts.ProjectRoot)
 	if err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg snapshot --accept failed: snapshot is unreadable.",
+			Title:       "regressguard snapshot --accept failed: snapshot is unreadable.",
 			Cause:       err.Error(),
-			Next:        "rg snapshot",
-			MoreContext: "rg snapshot --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard snapshot --help",
 		}
 	}
 
@@ -473,10 +473,10 @@ func runAccept(opts Options, cfg config.Config) (Result, error) {
 	// Check server reachability.
 	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
-			Title:       "rg snapshot --accept failed: dev server is not responding.",
+			Title:       "regressguard snapshot --accept failed: dev server is not responding.",
 			Cause:       "The server at " + cfg.ServerURL + " did not respond after several attempts.",
 			Next:        "npm run dev",
-			MoreContext: "rg doctor",
+			MoreContext: "regressguard doctor",
 		}
 	}
 
@@ -567,7 +567,7 @@ func runAccept(opts Options, cfg config.Config) (Result, error) {
 			Duration: fmtDuration(time.Duration(existingSnap.Tests.DurationMs) * time.Millisecond),
 		},
 		Routes: outcomes,
-		Next:   "rg check",
+		Next:   "regressguard check",
 	}
 
 	if opts.JSON {
@@ -587,7 +587,7 @@ func runAccept(opts Options, cfg config.Config) (Result, error) {
 		"Saved:",
 		"  " + ui.Paint(opts.Stdout, ui.ColorMuted, result.SnapshotPath),
 	}
-	lines = append(lines, ui.NextSection(opts.Stdout, "rg check")...)
+	lines = append(lines, ui.NextSection(opts.Stdout, "regressguard check")...)
 	ui.StaggeredPrint(opts.Stdout, lines)
 
 	return result, nil

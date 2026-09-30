@@ -174,7 +174,7 @@ func loadEnvFile(root string) {
 }
 
 // LooksLikeSecret returns true if the token value looks like a raw secret
-// (not an env var reference). Used by rg doctor to warn users.
+// (not an env var reference). Used by regressguard doctor to warn users.
 func LooksLikeSecret(token string) bool {
 	if token == "" || strings.HasPrefix(token, "$") {
 		return false

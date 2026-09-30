@@ -59,7 +59,7 @@ func Execute(build BuildInfo) error {
 
 func NewRootCommand(build BuildInfo) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "rg",
+		Use:           "regressguard",
 		Short:         "Before you commit, know what broke.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -104,16 +104,16 @@ func configureCompletionHelp(root *cobra.Command) {
 		if cmd.Name() != "completion" {
 			continue
 		}
-		cmd.SetHelpTemplate(groupHelpTemplate("rg completion zsh"))
+		cmd.SetHelpTemplate(groupHelpTemplate("regressguard completion zsh"))
 		for _, child := range cmd.Commands() {
-			child.SetHelpTemplate(commandHelpTemplate("rg completion " + child.Name()))
+			child.SetHelpTemplate(commandHelpTemplate("regressguard completion " + child.Name()))
 		}
 		return
 	}
 }
 
 func newInitCommand() *cobra.Command {
-	cmd := stubCommand("init", "Configure RegressGuard for this project", "rg init")
+	cmd := stubCommand("init", "Configure RegressGuard for this project", "regressguard init")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		serverURL, _ := cmd.Flags().GetString("server-url")
 		testCommand, _ := cmd.Flags().GetString("test-command")
@@ -151,7 +151,7 @@ func newInitCommand() *cobra.Command {
 }
 
 func newSnapshotCommand() *cobra.Command {
-	cmd := stubCommand("snapshot", "Record the current passing state", "rg snapshot")
+	cmd := stubCommand("snapshot", "Record the current passing state", "regressguard snapshot")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
@@ -186,7 +186,7 @@ func newSnapshotCommand() *cobra.Command {
 }
 
 func newCheckCommand() *cobra.Command {
-	cmd := stubCommand("check", "Compare current state against the snapshot", "rg check")
+	cmd := stubCommand("check", "Compare current state against the snapshot", "regressguard check")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 		verbose, _ := cmd.Flags().GetBool("verbose")
@@ -258,7 +258,7 @@ func newExplainCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg explain \"GET /api/users\""))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard explain \"GET /api/users\""))
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	return cmd
 }
@@ -275,7 +275,7 @@ func newWatchCommand() *cobra.Command {
 			})
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg watch"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard watch"))
 	return cmd
 }
 
@@ -335,14 +335,14 @@ func newQuickstartCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg quickstart --server-url http://localhost:3000"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard quickstart --server-url http://localhost:3000"))
 	cmd.Flags().String("server-url", "", "dev server URL (default: http://localhost:3000)")
 	cmd.Flags().Bool("json", false, "write machine-readable JSON to stdout")
 	return cmd
 }
 
 func newStatusCommand() *cobra.Command {
-	cmd := stubCommand("status", "Quick health check — snapshot age, routes, hook status", "rg status")
+	cmd := stubCommand("status", "Quick health check — snapshot age, routes, hook status", "regressguard status")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		jsonMode, _ := cmd.Flags().GetBool("json")
 
@@ -366,14 +366,14 @@ func newHookCommand() *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.SetHelpTemplate(groupHelpTemplate("rg hook install"))
+	cmd.SetHelpTemplate(groupHelpTemplate("regressguard hook install"))
 	cmd.AddCommand(newHookInstallCommand())
 	cmd.AddCommand(newHookUninstallCommand())
 	return cmd
 }
 
 func newHookInstallCommand() *cobra.Command {
-	cmd := stubCommand("install", "Install the pre-commit hook", "rg hook install")
+	cmd := stubCommand("install", "Install the pre-commit hook", "regressguard hook install")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		_, err := hookrun.Install(hookrun.InstallOptions{
 			Stdout: cmd.OutOrStdout(),
@@ -385,7 +385,7 @@ func newHookInstallCommand() *cobra.Command {
 }
 
 func newHookUninstallCommand() *cobra.Command {
-	cmd := stubCommand("uninstall", "Remove the RegressGuard hook block", "rg hook uninstall")
+	cmd := stubCommand("uninstall", "Remove the RegressGuard hook block", "regressguard hook uninstall")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return hookrun.Uninstall(hookrun.UninstallOptions{
 			Stdout: cmd.OutOrStdout(),
@@ -403,7 +403,7 @@ func newConfigCommand() *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.SetHelpTemplate(groupHelpTemplate("rg config get serverUrl"))
+	cmd.SetHelpTemplate(groupHelpTemplate("regressguard config get serverUrl"))
 	cmd.AddCommand(newConfigGetCommand())
 	cmd.AddCommand(newConfigSetCommand())
 	return cmd
@@ -425,7 +425,7 @@ func newConfigGetCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg config get serverUrl"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard config get serverUrl"))
 	return cmd
 }
 
@@ -445,7 +445,7 @@ func newConfigSetCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg config set serverUrl http://localhost:3000"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard config set serverUrl http://localhost:3000"))
 	return cmd
 }
 
@@ -465,7 +465,7 @@ func newDoctorCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg doctor"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard doctor"))
 	return cmd
 }
 
@@ -475,19 +475,19 @@ func newVersionCommand(build BuildInfo) *cobra.Command {
 		Short: "Print version and build metadata",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			_, err := fmt.Fprintf(out, "RegressGuard rg %s\ncommit: %s\nbuild date: %s\nos/arch: %s/%s\n",
+			_, err := fmt.Fprintf(out, "RegressGuard regressguard %s\ncommit: %s\nbuild date: %s\nos/arch: %s/%s\n",
 				build.Version, build.Commit, build.Date, runtime.GOOS, runtime.GOARCH)
 			return err
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg version"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard version"))
 	return cmd
 }
 
 func newUpgradeCommand(build BuildInfo) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "upgrade",
-		Short: "Update rg to the latest version",
+		Short: "Update regressguard to the latest version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkOnly, _ := cmd.Flags().GetBool("check")
 
@@ -506,7 +506,7 @@ func newUpgradeCommand(build BuildInfo) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg upgrade"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard upgrade"))
 	cmd.Flags().Bool("check", false, "check for updates without installing")
 	return cmd
 }
@@ -519,7 +519,7 @@ func newMCPCommand(build BuildInfo) *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.SetHelpTemplate(groupHelpTemplate("rg mcp serve"))
+	cmd.SetHelpTemplate(groupHelpTemplate("regressguard mcp serve"))
 	cmd.AddCommand(newMCPServeCommand(build))
 	return cmd
 }
@@ -539,7 +539,7 @@ func newMCPServeCommand(build BuildInfo) *cobra.Command {
 			})
 		},
 	}
-	cmd.SetHelpTemplate(commandHelpTemplate("rg mcp serve"))
+	cmd.SetHelpTemplate(commandHelpTemplate("regressguard mcp serve"))
 	cmd.Flags().String("project-root", ".", "restrict operations to this directory")
 	return cmd
 }
@@ -600,10 +600,10 @@ Commands:
   doctor     Diagnose setup issues
 
 Start:
-  rg init
+  regressguard init
 
 Zero-config:
-  rg quickstart
+  regressguard quickstart
 `, "\n")
 }
 

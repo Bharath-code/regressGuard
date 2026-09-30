@@ -5,7 +5,7 @@
 set -e
 
 REPO="Bharath-code/regressguard"
-BINARY="rg"
+BINARY="regressguard"
 INSTALL_DIR="${RG_INSTALL_DIR:-/usr/local/bin}"
 
 # Detect OS and architecture.
@@ -43,7 +43,7 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-ARCHIVE="rg_${VERSION}_${OS_NAME}_${ARCH_NAME}.tar.gz"
+ARCHIVE="regressguard_${VERSION}_${OS_NAME}_${ARCH_NAME}.tar.gz"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/v${VERSION}/${ARCHIVE}"
 
 echo "Installing RegressGuard"
@@ -53,7 +53,7 @@ echo ""
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-echo "> Downloading rg $VERSION ($OS_NAME/$ARCH_NAME)..."
+echo "> Downloading regressguard $VERSION ($OS_NAME/$ARCH_NAME)..."
 curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$ARCHIVE"
 
 echo "> Extracting..."
@@ -69,36 +69,25 @@ else
   sudo chmod +x "$INSTALL_DIR/$BINARY"
 fi
 
-# Unambiguous alias: `rg` collides with ripgrep on most machines; the Claude
-# Code plugin and docs-safe invocations use `regressguard`.
-if [ -w "$INSTALL_DIR" ]; then
-  ln -sf "$INSTALL_DIR/$BINARY" "$INSTALL_DIR/regressguard"
-else
-  sudo ln -sf "$INSTALL_DIR/$BINARY" "$INSTALL_DIR/regressguard"
-fi
-
-# Verify using the absolute path — `command -v rg` may find ripgrep instead.
 INSTALLED="$INSTALL_DIR/$BINARY"
 if [ -x "$INSTALLED" ]; then
-  echo "OK Installed rg $VERSION to $INSTALLED"
+  echo "OK Installed regressguard $VERSION to $INSTALLED"
 else
   echo "Install failed: $INSTALLED is missing or not executable."
   exit 1
 fi
 
-RESOLVED="$(command -v rg 2>/dev/null || true)"
-if [ -z "$RESOLVED" ]; then
+# Pre-rename installs left an `rg` binary; it is not removed (it is yours to delete).
+OLD="$INSTALL_DIR/rg"
+if [ -x "$OLD" ] && "$OLD" version 2>/dev/null | grep -q RegressGuard; then
   echo ""
-  echo "rg is not in your PATH. Add this to your shell profile:"
+  echo "Note: $OLD is the old RegressGuard binary name. Delete it when ready: rm $OLD"
+fi
+
+if ! command -v regressguard >/dev/null 2>&1; then
+  echo ""
+  echo "regressguard is not in your PATH. Add this to your shell profile:"
   echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
-elif [ "$RESOLVED" != "$INSTALLED" ]; then
-  echo ""
-  echo "WARNING: 'rg' in your PATH resolves to $RESOLVED, not RegressGuard."
-  if "$RESOLVED" --version 2>/dev/null | grep -q ripgrep; then
-    echo "That is ripgrep. Typing 'rg' will run ripgrep, not RegressGuard."
-  fi
-  echo "Use the unambiguous name instead:"
-  echo "  regressguard version"
 fi
 
 echo ""
