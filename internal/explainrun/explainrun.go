@@ -335,7 +335,7 @@ func writeHuman(w io.Writer, result Result, snap snapshot.RouteRecord, live engi
 		lines = append(lines, "")
 		lines = append(lines, paint(w, ui.ColorWarn, fmt.Sprintf("  %d change(s) detected.", len(result.Changes))))
 		lines = append(lines, "")
-		lines = append(lines, paint(w, ui.ColorMuted, "  If intentional: rg snapshot"))
+		lines = append(lines, paint(w, ui.ColorMuted, "  A human must approve a baseline change (rg snapshot, reviewed in PR)"))
 	}
 	lines = append(lines, "")
 

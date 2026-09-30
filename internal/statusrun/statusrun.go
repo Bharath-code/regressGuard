@@ -120,7 +120,7 @@ func writeHuman(w io.Writer, result Result) error {
 		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "rg snapshot"))
 	} else if result.SnapshotStale {
 		lines = append(lines, "", ui.Paint(w, ui.ColorBold, "Next:"))
-		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "rg snapshot")+" (refresh baseline)")
+		lines = append(lines, "  A human should review and refresh the baseline (rg snapshot, reviewed in PR)")
 	} else if !result.HookInstalled {
 		lines = append(lines, "", ui.Paint(w, ui.ColorBold, "Next:"))
 		lines = append(lines, "  "+ui.Paint(w, ui.ColorInfo, "rg hook install")+" (protect every commit)")

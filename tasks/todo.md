@@ -45,9 +45,9 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
   lines. Replace them with "A human must approve a baseline change (`rg snapshot`, reviewed in PR)" in text
   output only. JSON and MCP `next` fields must never contain `snapshot`.
 - **Acceptance:**
-  - [ ] `grep -rn '"rg snapshot"' internal/checkrun internal/mcprun` returns only human-facing text paths, or nothing.
-  - [ ] MCP `check` tool result on a CRITICAL diff contains no `snapshot` suggestion (unit test in `mcprun`).
-  - [ ] `docs/json-contract.md` updated if the `next` field semantics changed.
+  - [x] `grep -rn '"rg snapshot"' internal/checkrun internal/mcprun` returns only human-facing text paths, or nothing.
+  - [x] MCP `check` tool result on a CRITICAL diff contains no `snapshot` suggestion (unit test in `mcprun`).
+  - [x] `docs/json-contract.md` updated if the `next` field semantics changed.
 
 ### T1.2 Remove the HMAC (D1)
 - **Change:** Delete `internal/snapshot/integrity.go`, the `WriteHMAC` call after snapshot write, and the
