@@ -45,7 +45,7 @@ the durable moat — value compounds with retained data, and it cannot be replic
 ### 3. Compliance export
 A signed, timestamped verification record ("commit `abc123` was checked against baseline
 `X` and produced 0 critical regressions") exportable as PDF/CSV/JSON for SOC2 / change-management
-evidence. Builds on the existing HMAC snapshot integrity primitive. Targets regulated teams
+evidence. Builds on `--base` baseline verification. Targets regulated teams
 shipping AI-authored code who must _prove_ a verification gate existed.
 
 ## Architecture sketch (non-binding)

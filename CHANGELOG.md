@@ -10,6 +10,10 @@ versioning follows [SemVer](https://semver.org/).
 
 - `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
 
+### Removed
+
+- Snapshot HMAC (`snapshot.hmac`, "integrity warning"). The key was derived from the project path, so it was forgeable and false-alarmed across clones. Use `rg check --base` + CODEOWNERS; `rg doctor` deletes the stale file.
+
 ### Changed
 
 - `snapshot.json` is now committed by default: `rg init` writes `.regressguard/*` + `!.regressguard/snapshot.json` to `.gitignore` (`rg doctor` warns on the old whole-directory ignore). Re-snapshotting an unchanged contract no longer rewrites the file, so PRs don't diff on timings/timestamps.

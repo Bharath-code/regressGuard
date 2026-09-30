@@ -54,10 +54,10 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
   `VerifyHMAC` block in `checkrun.go:91-97`. `rg doctor` deletes a stale `.regressguard/snapshot.hmac` if present.
   T1.4 replaces it as the anti-tamper mechanism.
 - **Acceptance:**
-  - [ ] `grep -rn "HMAC\|hmac" --include='*.go' .` → no hits outside the doctor cleanup.
-  - [ ] Same repo cloned to two different paths → identical `check` verdict with no warning.
-  - [ ] README and `docs/security-features.md` no longer claim snapshot integrity/tamper detection. They point to `--base` + CODEOWNERS.
-  - [ ] CHANGELOG notes the removal under v0.2.0.
+  - [x] `grep -rn "HMAC\|hmac" --include='*.go' .` → no hits outside the doctor cleanup.
+  - [x] Same repo cloned to two different paths → identical `check` verdict with no warning.
+  - [x] README and `docs/security-features.md` no longer claim snapshot integrity/tamper detection. They point to `--base` + CODEOWNERS.
+  - [x] CHANGELOG notes the removal under v0.2.0.
 
 ### T1.3 Commit the baseline by default
 - **Change:** `.gitignore` → `.regressguard/*` + `!.regressguard/snapshot.json`. `rg init` writes the same

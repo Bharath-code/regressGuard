@@ -148,6 +148,11 @@ func runChecks(opts Options) bool {
 		_, _ = fmt.Fprintf(opts.Stdout, "  Fix: replace '.regressguard/' with '.regressguard/*' and '!.regressguard/snapshot.json'\n")
 	}
 
+	// Stale integrity file from releases before v0.2.0 (removed; baseline authority is git + --base).
+	if err := os.Remove(filepath.Join(opts.ProjectRoot, snapshot.DirName, "snapshot.hmac")); err == nil {
+		printPass(opts.Stdout, "Cleanup", "removed stale .regressguard/snapshot.hmac")
+	}
+
 	_, _ = fmt.Fprintln(opts.Stdout)
 
 	// 6. Git check.

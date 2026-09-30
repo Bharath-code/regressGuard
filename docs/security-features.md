@@ -6,7 +6,7 @@ RegressGuard handles sensitive data: auth tokens, API responses, and project con
 
 1. **Secret leakage** — tokens stored in plain text in committed files
 2. **Stale credentials** — forgotten tokens that should have been rotated
-3. **Snapshot tampering** — modified baselines that hide regressions
+3. **Snapshot tampering** — modified baselines that hide regressions (mitigated by `rg check --base` + CODEOWNERS, not by a local signature)
 4. **Supply-chain attacks** — compromised binaries during self-update
 5. **Agent overreach** — MCP-connected agents accessing unrelated directories
 6. **Audit gaps** — no visibility into what AI agents are doing via MCP
@@ -106,35 +106,19 @@ OK Updated: 0.1.0 -> 0.2.0
 {"timestamp":"2026-05-23T10:32:00Z","tool":"status","status":"success","durationMs":45,"args":{}}
 ```
 
-### S7: Snapshot Integrity Check (HMAC)
+### S7: Snapshot tamper resistance (HMAC removed in v0.2.0)
 
-**Problem:** If someone manually edits `snapshot.json` (accidentally or maliciously), `rg check` would compare against a tampered baseline, potentially hiding real regressions.
-
-**Solution:** After every `snapshot.Write`, an HMAC-SHA256 is computed over the snapshot content using a project-specific key (derived from the absolute project path + a salt). The HMAC is stored in `.regressguard/snapshot.hmac`. On `rg check`, the HMAC is verified before trusting the snapshot. Mismatch produces a non-blocking warning on stderr.
-
-**Usage:**
-```
-$ rg check
-! Snapshot integrity warning: snapshot.json may have been modified outside of rg snapshot.
-  Run: rg snapshot
-```
-
-**Design decisions:**
-- The key is derived from the project path, not a user secret — this is tamper *detection*, not encryption
-- HMAC mismatch is a warning, not a blocker — the user may have legitimate reasons to edit the snapshot
-- Snapshots created before S7 don't have an HMAC file; this is handled gracefully (no warning)
+The path-derived HMAC was removed: its key was `sha256(salt + absolute path)`, so anyone (including an agent) could recompute it, and it warned on legitimate clones at different paths. Baseline authority is now git: run `rg check --base <ref>` in CI so the baseline comes from the protected branch, and protect `.regressguard/snapshot.json` with CODEOWNERS. `rg doctor` deletes a stale `.regressguard/snapshot.hmac`.
 
 ## File Changes
 
 | File | Changes |
 |------|---------|
 | `internal/config/config.go` | Added `RedactFields`, `WriteEnvFile()`, `EnvFilePermissionsOK()`, `EnvFileAge()` |
-| `internal/snapshot/snapshot.go` | Updated `Write()` with redaction support, auto-HMAC |
-| `internal/snapshot/integrity.go` | New file: HMAC computation and verification |
+| `internal/snapshot/snapshot.go` | Updated `Write()` with redaction support |
 | `internal/doctorrun/doctorrun.go` | Added S1 (token age) and S3 (permissions) checks |
 | `internal/mcprun/mcprun.go` | Added S4 (path validation) and S6 (audit logging) |
 | `internal/upgraderun/upgraderun.go` | Added S5 (GPG signature verification) |
-| `internal/checkrun/checkrun.go` | Added S7 (HMAC verification warning) |
 | `internal/cli/cli.go` | Added `--project-root` flag to `rg mcp serve` |
 | `internal/configrun/configrun.go` | Added `redactFields` get/set support |
 | `internal/snapshotrun/snapshotrun.go` | Pass `RedactFields` to `snapshot.Write()` |

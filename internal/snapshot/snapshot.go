@@ -105,12 +105,6 @@ func Write(root string, snap Snapshot, redactFields ...[]string) error {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 
-	// S7: write HMAC for integrity verification.
-	if err := WriteHMAC(root); err != nil {
-		// Non-fatal — integrity is a bonus, not a requirement.
-		_ = err
-	}
-
 	return nil
 }
 
