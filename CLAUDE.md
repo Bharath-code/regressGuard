@@ -31,7 +31,7 @@ verification via MCP**. Gated on three conditions before growth spend:
 ## Architecture quick map
 - `internal/engine` — test runner, route hitter, schema normalizer, diff (severity rules).
 - `internal/checkrun` — `rg check` pipeline (load snapshot, rerun, diff, render).
-- `internal/snapshot` — baseline read/write + HMAC integrity + field redaction.
+- `internal/snapshot` — baseline read/write + field redaction.
 - `internal/mcprun` — exposes snapshot/check/status as MCP tools (strategic differentiator).
 - `internal/ui` — design system; all color via `ui.Paint()`, animations TTY-only.
 
