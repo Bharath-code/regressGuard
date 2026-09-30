@@ -1,4 +1,4 @@
-// Package checkrun implements the rg check command.
+// Package checkrun implements the regressguard check command.
 // It loads the snapshot, reruns tests and routes, diffs the results,
 // and renders the outcome following the RegressGuard terminal design system
 // (Section 6, Flows E/F/G/H).
@@ -38,7 +38,7 @@ type Options struct {
 	Stderr      io.Writer
 }
 
-// Result is the machine-readable outcome of rg check.
+// Result is the machine-readable outcome of regressguard check.
 type Result struct {
 	Status  string         `json:"status"`
 	Summary ResultSummary  `json:"summary"`
@@ -135,10 +135,10 @@ func Run(opts Options) (Result, error) {
 
 		if err := serverProcess.Start(); err != nil {
 			return Result{}, failures.Actionable{
-				Title:       "rg check failed: could not start dev server.",
+				Title:       "regressguard check failed: could not start dev server.",
 				Cause:       err.Error(),
 				Next:        serverCmd,
-				MoreContext: "rg check --help",
+				MoreContext: "regressguard check --help",
 			}
 		}
 
@@ -206,10 +206,10 @@ func Run(opts Options) (Result, error) {
 				}
 				cleanupServer()
 				return Result{}, failures.Actionable{
-					Title:       "rg check failed: dev server did not become ready within 15s.",
+					Title:       "regressguard check failed: dev server did not become ready within 15s.",
 					Cause:       "Started \"" + serverCmd + "\" but " + cfg.ServerURL + " never responded.",
 					Next:        serverCmd,
-					MoreContext: "rg doctor",
+					MoreContext: "regressguard doctor",
 				}
 			case <-ticker.C:
 				if engine.ServerReachable(cfg.ServerURL) {
@@ -231,10 +231,10 @@ func Run(opts Options) (Result, error) {
 	// E9-T2: fast server-down detection.
 	if len(routes) > 0 && !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
-			Title:       "rg check failed: dev server is not responding.",
+			Title:       "regressguard check failed: dev server is not responding.",
 			Cause:       "The server at " + cfg.ServerURL + " did not respond after several attempts.",
 			Next:        "npm run dev",
-			MoreContext: "rg doctor",
+			MoreContext: "regressguard doctor",
 		}
 	}
 
@@ -263,10 +263,10 @@ func Run(opts Options) (Result, error) {
 	}
 	if testErr != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg check failed: test command error.",
+			Title:       "regressguard check failed: test command error.",
 			Cause:       testErr.Error(),
-			Next:        "rg config set testCommand \"npm test\"",
-			MoreContext: "rg check --help",
+			Next:        "regressguard config set testCommand \"npm test\"",
+			MoreContext: "regressguard check --help",
 		}
 	}
 
@@ -416,7 +416,7 @@ func Run(opts Options) (Result, error) {
 
 	if opts.JSON {
 		if opts.Verbose {
-			_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolInfo+" Run rg check --verbose for request metadata.")
+			_, _ = fmt.Fprintln(opts.Stderr, ui.SymbolInfo+" Run regressguard check --verbose for request metadata.")
 		}
 		return result, writeJSON(opts.Stdout, result)
 	}
@@ -440,19 +440,19 @@ func Run(opts Options) (Result, error) {
 func loadConfig(root string) (config.Config, error) {
 	if !config.Exists(root) {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg check failed: no config found.",
+			Title:       "regressguard check failed: no config found.",
 			Cause:       "RegressGuard has not been initialized for this project.",
-			Next:        "rg init",
-			MoreContext: "rg check --help",
+			Next:        "regressguard init",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	cfg, err := config.Load(root)
 	if err != nil {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg check failed: config is invalid.",
+			Title:       "regressguard check failed: config is invalid.",
 			Cause:       err.Error(),
-			Next:        "rg init --yes",
-			MoreContext: "rg check --help",
+			Next:        "regressguard init --yes",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	if cfg.TestCommand == "" {
@@ -473,19 +473,19 @@ func loadBaseline(opts Options) (snapshot.Snapshot, []engine.CheckResult, error)
 	out, err := exec.Command("git", "-C", opts.ProjectRoot, "show", spec).Output()
 	if err != nil {
 		return snapshot.Snapshot{}, nil, failures.Actionable{
-			Title:       "rg check failed: no baseline at --base " + opts.Base + ".",
+			Title:       "regressguard check failed: no baseline at --base " + opts.Base + ".",
 			Cause:       "Could not read " + spec + " (ref missing, or no snapshot committed there yet).",
 			Next:        "git add .regressguard/snapshot.json && git commit, merge it, then re-run with --base",
-			MoreContext: "rg check --help",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	var base snapshot.Snapshot
 	if err := json.Unmarshal(out, &base); err != nil || base.Version != snapshot.Version {
 		return snapshot.Snapshot{}, nil, failures.Actionable{
-			Title:       "rg check failed: baseline at --base " + opts.Base + " is unreadable or incompatible.",
+			Title:       "regressguard check failed: baseline at --base " + opts.Base + " is unreadable or incompatible.",
 			Cause:       fmt.Sprintf("Expected snapshot version %d.", snapshot.Version),
-			Next:        "rg check --help",
-			MoreContext: "rg check --help",
+			Next:        "regressguard check --help",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	if !snapshot.Exists(opts.ProjectRoot) {
@@ -514,21 +514,21 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 	snap, err := snapshot.Load(root)
 	if err != nil {
 		return snapshot.Snapshot{}, failures.Actionable{
-			Title:       "rg check failed: snapshot is unreadable.",
+			Title:       "regressguard check failed: snapshot is unreadable.",
 			Cause:       err.Error(),
 			Next:        "Ask a human to restore or re-record the baseline (reviewed in PR)",
-			MoreContext: "rg check --help",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	if snap.Version != snapshot.Version {
 		return snapshot.Snapshot{}, failures.Actionable{
 			Title: fmt.Sprintf(
-				"rg check failed: snapshot version %d is incompatible (expected %d).",
+				"regressguard check failed: snapshot version %d is incompatible (expected %d).",
 				snap.Version, snapshot.Version,
 			),
 			Cause:       "The snapshot was created by a different version of RegressGuard.",
 			Next:        "Ask a human to restore or re-record the baseline (reviewed in PR)",
-			MoreContext: "rg check --help",
+			MoreContext: "regressguard check --help",
 		}
 	}
 	return snap, nil
@@ -621,9 +621,9 @@ func statusFromDiff(diff engine.DiffResult) string {
 func nextCommand(status string) string {
 	switch status {
 	case "critical":
-		return "rg check --verbose"
+		return "regressguard check --verbose"
 	case "warning":
-		return "rg check --verbose"
+		return "regressguard check --verbose"
 	default:
 		return "git commit"
 	}
@@ -698,7 +698,7 @@ func writeHumanPass(stdout io.Writer, result Result, before, after snapshot.Snap
 		_, _ = fmt.Fprintln(stdout)
 		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "Setup complete. Your workflow:"))
 		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  1. Code (or let AI code)"))
-		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  2. rg check"))
+		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  2. regressguard check"))
 		_, _ = fmt.Fprintln(stdout, paint(stdout, ui.ColorMuted, "  3. Commit with confidence"))
 		s.FirstPassShown = true
 		_ = state.Save(projectRoot, s)
@@ -749,7 +749,7 @@ func writeHumanWarning(stdout io.Writer, result Result, diff engine.DiffResult, 
 
 	lines = append(lines, "")
 	lines = append(lines, ui.Separator(stdout))
-	lines = append(lines, ui.NextSection(stdout, "rg check --verbose")...)
+	lines = append(lines, ui.NextSection(stdout, "regressguard check --verbose")...)
 	lines = append(lines, "")
 	lines = append(lines, paint(stdout, ui.ColorWarn, "Commit allowed."))
 	lines = append(lines, "")
@@ -828,9 +828,9 @@ func writeHumanCritical(stdout io.Writer, result Result, diff engine.DiffResult,
 		}
 	}
 
-	footerLines = append(footerLines, ui.NextSection(stdout, "rg check --verbose", "git diff")...)
+	footerLines = append(footerLines, ui.NextSection(stdout, "regressguard check --verbose", "git diff")...)
 	footerLines = append(footerLines, "")
-	footerLines = append(footerLines, paint(stdout, ui.ColorMuted, "A human must approve a baseline change (rg snapshot, reviewed in PR)"))
+	footerLines = append(footerLines, paint(stdout, ui.ColorMuted, "A human must approve a baseline change (regressguard snapshot, reviewed in PR)"))
 	footerLines = append(footerLines, "")
 	ui.StaggeredPrint(stdout, footerLines)
 
@@ -871,7 +871,7 @@ func writeHook(stdout io.Writer, result Result, diff engine.DiffResult) error {
 	lines = append(lines,
 		"",
 		"Run:",
-		"  "+paint(stdout, ui.ColorInfo, "rg check --verbose"),
+		"  "+paint(stdout, ui.ColorInfo, "regressguard check --verbose"),
 		"",
 		paint(stdout, ui.ColorFail, "Commit blocked.")+" Use --no-verify only if you accept the risk.",
 	)
@@ -1059,7 +1059,7 @@ func withDefaults(opts Options) Options {
 
 // autoRefreshSnapshot silently updates the snapshot when check passes and
 // the existing snapshot is stale (>24h). This prevents repeated stale warnings
-// without requiring the user to manually run rg snapshot.
+// without requiring the user to manually run regressguard snapshot.
 func autoRefreshSnapshot(opts Options, afterSnap snapshot.Snapshot) {
 	// Build a fresh snapshot from the current check results. Never persist
 	// Unverified routes into a baseline — a baseline must only contain measured

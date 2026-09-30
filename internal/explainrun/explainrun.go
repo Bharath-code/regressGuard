@@ -1,4 +1,4 @@
-// Package explainrun implements the rg explain command.
+// Package explainrun implements the regressguard explain command.
 // It shows the before (snapshot) and after (live) response for a specific
 // route with field-level diff highlighting.
 package explainrun
@@ -26,7 +26,7 @@ type Options struct {
 	Stderr      io.Writer
 }
 
-// Result is the machine-readable outcome of rg explain.
+// Result is the machine-readable outcome of regressguard explain.
 type Result struct {
 	Route   string       `json:"route"`
 	Status  string       `json:"status"` // "changed", "unchanged", "error"
@@ -79,10 +79,10 @@ func Run(opts Options) (Result, error) {
 	snapRecord, ok := snap.Routes[routeKey]
 	if !ok {
 		return Result{}, failures.Actionable{
-			Title:       fmt.Sprintf("rg explain failed: route %q not found in snapshot.", routeKey),
+			Title:       fmt.Sprintf("regressguard explain failed: route %q not found in snapshot.", routeKey),
 			Cause:       "This route was not captured in the last snapshot.",
-			Next:        "rg snapshot",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 
@@ -98,20 +98,20 @@ func Run(opts Options) (Result, error) {
 	}
 	if !found {
 		return Result{}, failures.Actionable{
-			Title:       fmt.Sprintf("rg explain failed: route %q not in config.", routeKey),
+			Title:       fmt.Sprintf("regressguard explain failed: route %q not in config.", routeKey),
 			Cause:       "This route exists in the snapshot but was removed from config.",
-			Next:        "rg init --yes",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard init --yes",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 
 	// Check server reachability.
 	if !engine.ServerReachable(cfg.ServerURL) {
 		return Result{}, failures.Actionable{
-			Title:       "rg explain failed: dev server is not responding.",
+			Title:       "regressguard explain failed: dev server is not responding.",
 			Cause:       "The server at " + cfg.ServerURL + " did not respond after several attempts.",
 			Next:        "npm run dev",
-			MoreContext: "rg doctor",
+			MoreContext: "regressguard doctor",
 		}
 	}
 
@@ -129,10 +129,10 @@ func Run(opts Options) (Result, error) {
 			reason = routeResults[0].SkipReason
 		}
 		return Result{}, failures.Actionable{
-			Title:       fmt.Sprintf("rg explain failed: could not hit route %s.", routeKey),
+			Title:       fmt.Sprintf("regressguard explain failed: could not hit route %s.", routeKey),
 			Cause:       reason,
-			Next:        "rg check --verbose",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard check --verbose",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 
@@ -335,7 +335,7 @@ func writeHuman(w io.Writer, result Result, snap snapshot.RouteRecord, live engi
 		lines = append(lines, "")
 		lines = append(lines, paint(w, ui.ColorWarn, fmt.Sprintf("  %d change(s) detected.", len(result.Changes))))
 		lines = append(lines, "")
-		lines = append(lines, paint(w, ui.ColorMuted, "  A human must approve a baseline change (rg snapshot, reviewed in PR)"))
+		lines = append(lines, paint(w, ui.ColorMuted, "  A human must approve a baseline change (regressguard snapshot, reviewed in PR)"))
 	}
 	lines = append(lines, "")
 
@@ -385,20 +385,20 @@ func parseRouteKey(route string) (string, error) {
 	route = strings.TrimSpace(route)
 	if route == "" {
 		return "", failures.Actionable{
-			Title:       "rg explain failed: no route specified.",
+			Title:       "regressguard explain failed: no route specified.",
 			Cause:       "You must provide a route to explain.",
-			Next:        "rg explain \"GET /api/users\"",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard explain \"GET /api/users\"",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 
 	parts := strings.SplitN(route, " ", 2)
 	if len(parts) != 2 {
 		return "", failures.Actionable{
-			Title:       fmt.Sprintf("rg explain failed: invalid route format %q.", route),
+			Title:       fmt.Sprintf("regressguard explain failed: invalid route format %q.", route),
 			Cause:       "Route must be in the format \"METHOD /path\" (e.g. \"GET /api/users\").",
-			Next:        "rg explain \"GET /api/users\"",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard explain \"GET /api/users\"",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 
@@ -414,19 +414,19 @@ func parseRouteKey(route string) (string, error) {
 func loadConfig(root string) (config.Config, error) {
 	if !config.Exists(root) {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg explain failed: no config found.",
+			Title:       "regressguard explain failed: no config found.",
 			Cause:       "RegressGuard has not been initialized for this project.",
-			Next:        "rg init",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard init",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 	cfg, err := config.Load(root)
 	if err != nil {
 		return config.Config{}, failures.Actionable{
-			Title:       "rg explain failed: config is invalid.",
+			Title:       "regressguard explain failed: config is invalid.",
 			Cause:       err.Error(),
-			Next:        "rg init --yes",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard init --yes",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 	return cfg, nil
@@ -439,10 +439,10 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 	snap, err := snapshot.Load(root)
 	if err != nil {
 		return snapshot.Snapshot{}, failures.Actionable{
-			Title:       "rg explain failed: snapshot is unreadable.",
+			Title:       "regressguard explain failed: snapshot is unreadable.",
 			Cause:       err.Error(),
-			Next:        "rg snapshot",
-			MoreContext: "rg explain --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard explain --help",
 		}
 	}
 	return snap, nil

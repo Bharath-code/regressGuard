@@ -648,8 +648,8 @@ func TestResolve_outOfRange(t *testing.T) {
 	if actionable.Cause != expectedCause {
 		t.Errorf("error cause = %q, want %q", actionable.Cause, expectedCause)
 	}
-	if actionable.Next != "rg diff --list" {
-		t.Errorf("error next = %q, want %q", actionable.Next, "rg diff --list")
+	if actionable.Next != "regressguard diff --list" {
+		t.Errorf("error next = %q, want %q", actionable.Next, "regressguard diff --list")
 	}
 }
 
@@ -715,8 +715,8 @@ func TestResolve_unknownRef(t *testing.T) {
 		if actionable.Title != "Snapshot not found" {
 			t.Errorf("ref %q: error title = %q, want %q", ref, actionable.Title, "Snapshot not found")
 		}
-		if actionable.Next != "rg diff --list" {
-			t.Errorf("ref %q: error next = %q, want %q", ref, actionable.Next, "rg diff --list")
+		if actionable.Next != "regressguard diff --list" {
+			t.Errorf("ref %q: error next = %q, want %q", ref, actionable.Next, "regressguard diff --list")
 		}
 	}
 }
@@ -755,8 +755,8 @@ func TestResolve_fileMissingFromDisk(t *testing.T) {
 	if actionable.Title != "Snapshot file missing" {
 		t.Errorf("error title = %q, want %q", actionable.Title, "Snapshot file missing")
 	}
-	if actionable.Next != "rg snapshot" {
-		t.Errorf("error next = %q, want %q", actionable.Next, "rg snapshot")
+	if actionable.Next != "regressguard snapshot" {
+		t.Errorf("error next = %q, want %q", actionable.Next, "regressguard snapshot")
 	}
 }
 
@@ -873,7 +873,7 @@ func TestList_noSnapshotReturnsError(t *testing.T) {
 	if actionable.Title != "No snapshot available" {
 		t.Errorf("error title = %q, want %q", actionable.Title, "No snapshot available")
 	}
-	if actionable.Next != "rg snapshot" {
-		t.Errorf("error next = %q, want %q", actionable.Next, "rg snapshot")
+	if actionable.Next != "regressguard snapshot" {
+		t.Errorf("error next = %q, want %q", actionable.Next, "regressguard snapshot")
 	}
 }

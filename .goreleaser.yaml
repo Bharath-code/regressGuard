@@ -7,9 +7,9 @@ before:
     - go mod tidy
 
 builds:
-  - id: rg
-    main: ./cmd/rg
-    binary: rg
+  - id: regressguard
+    main: ./cmd/regressguard
+    binary: regressguard
     env:
       - CGO_ENABLED=0
     goos:
@@ -25,8 +25,8 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - id: rg
-    name_template: "rg_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: regressguard
+    name_template: "regressguard_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
     files:
@@ -42,7 +42,7 @@ release:
     name: regressguard
   draft: false
   prerelease: auto
-  name_template: "rg {{.Version}}"
+  name_template: "regressguard {{.Version}}"
   header: |
     ## RegressGuard {{.Version}}
 

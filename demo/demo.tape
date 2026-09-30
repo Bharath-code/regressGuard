@@ -1,5 +1,5 @@
 # vhs tape: break → detect → fix → green, recorded in fixtures/nextjs-app.
-# Prereqs: fixture dev server running on :3000 (routes warmed), ./rg built at repo root.
+# Prereqs: fixture dev server running on :3000 (routes warmed), ./regressguard built at repo root.
 # Record with:  vhs demo/demo.tape   (from the repo root)
 Output demo/demo.gif
 
@@ -10,14 +10,14 @@ Set TypingSpeed 30ms
 Set Padding 12
 
 Hide
-Type "cd fixtures/nextjs-app && alias rg=../../rg && clear"
+Type "cd fixtures/nextjs-app && alias regressguard=../../regressguard && clear"
 Enter
 Sleep 1s
 Show
 
 Type "# Record the known-good baseline before the AI session"
 Enter
-Type "rg snapshot"
+Type "regressguard snapshot"
 Enter
 Sleep 12s
 
@@ -31,13 +31,13 @@ Type "clear"
 Enter
 Show
 
-Type "rg check"
+Type "regressguard check"
 Enter
 Sleep 10s
 
 Type "# agents get the culprit file as a structured hint:"
 Enter
-Type "rg check --json | jq -r '.results[0].hint'"
+Type "regressguard check --json | jq -r '.results[0].hint'"
 Enter
 Sleep 8s
 
@@ -49,7 +49,7 @@ Enter
 Sleep 1s
 Show
 
-Type "rg check"
+Type "regressguard check"
 Enter
 Sleep 10s
 Sleep 3s

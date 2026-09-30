@@ -451,7 +451,7 @@ func TestDiffSnapshots_sameNamedFailures_noFinding(t *testing.T) {
 }
 
 func TestDiffSnapshots_oldSnapshotNoNames_fallsBackToCount(t *testing.T) {
-	// Baseline from an old rg version: failures recorded but no names.
+	// Baseline from an old regressguard version: failures recorded but no names.
 	before := makeSnap(41, 1, nil)
 	after := makeSnap(41, 1, nil)
 	after.Tests.FailedNames = []string{"rejects bad password"}

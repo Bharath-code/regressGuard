@@ -1,5 +1,5 @@
-// Package watchrun implements the rg watch command.
-// It watches project files for changes and automatically runs rg check
+// Package watchrun implements the regressguard watch command.
+// It watches project files for changes and automatically runs regressguard check
 // when modifications are detected, providing continuous regression feedback.
 package watchrun
 
@@ -36,20 +36,20 @@ func Run(opts Options) error {
 	// Validate config exists.
 	if !config.Exists(opts.ProjectRoot) {
 		return failures.Actionable{
-			Title:       "rg watch failed: no config found.",
+			Title:       "regressguard watch failed: no config found.",
 			Cause:       "RegressGuard has not been initialized for this project.",
-			Next:        "rg init",
-			MoreContext: "rg watch --help",
+			Next:        "regressguard init",
+			MoreContext: "regressguard watch --help",
 		}
 	}
 
 	cfg, err := config.Load(opts.ProjectRoot)
 	if err != nil {
 		return failures.Actionable{
-			Title:       "rg watch failed: config is invalid.",
+			Title:       "regressguard watch failed: config is invalid.",
 			Cause:       err.Error(),
-			Next:        "rg init --yes",
-			MoreContext: "rg watch --help",
+			Next:        "regressguard init --yes",
+			MoreContext: "regressguard watch --help",
 		}
 	}
 
@@ -145,7 +145,7 @@ func Run(opts Options) error {
 	}
 }
 
-// runCheck executes rg check and prints a compact result.
+// runCheck executes regressguard check and prints a compact result.
 func runCheck(opts Options, changedFile string) {
 	_, _ = fmt.Fprintln(opts.Stdout, ui.Separator(opts.Stdout))
 	if changedFile != "" {

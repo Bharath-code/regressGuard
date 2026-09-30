@@ -75,8 +75,8 @@ func TestRun_missingConfig(t *testing.T) {
 	if _, ok := err.(failures.Actionable); !ok {
 		t.Errorf("expected failures.Actionable, got %T: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "rg init") {
-		t.Errorf("error should mention 'rg init', got: %v", err)
+	if !strings.Contains(err.Error(), "regressguard init") {
+		t.Errorf("error should mention 'regressguard init', got: %v", err)
 	}
 }
 
@@ -96,8 +96,8 @@ func TestRun_missingSnapshot(t *testing.T) {
 	if _, ok := err.(failures.Actionable); !ok {
 		t.Errorf("expected failures.Actionable, got %T: %v", err, err)
 	}
-	if !strings.Contains(err.Error(), "rg snapshot") {
-		t.Errorf("error should mention 'rg snapshot', got: %v", err)
+	if !strings.Contains(err.Error(), "regressguard snapshot") {
+		t.Errorf("error should mention 'regressguard snapshot', got: %v", err)
 	}
 }
 
@@ -119,7 +119,7 @@ func TestRun_incompatibleSnapshotVersion(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for incompatible snapshot version")
 	}
-	if strings.Contains(err.Error(), "rg snapshot") || !strings.Contains(err.Error(), "human") {
+	if strings.Contains(err.Error(), "regressguard snapshot") || !strings.Contains(err.Error(), "human") {
 		t.Errorf("error should hand re-baselining to a human, not name the command, got: %v", err)
 	}
 }
@@ -397,7 +397,7 @@ func TestRun_warningScreen_render(t *testing.T) {
 				Message:  "GET /api/profile: +420ms slower (40ms -> 460ms)",
 			},
 		},
-		Next: "rg check --verbose",
+		Next: "regressguard check --verbose",
 	}
 
 	diff := engine.DiffResult{

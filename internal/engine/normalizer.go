@@ -189,7 +189,7 @@ func NormalizeAndHash(body []byte, ignoreFields []string) string {
 
 // NormalizeAndHashWithShape is like NormalizeAndHash but also returns the
 // normalized shape as JSON bytes. Used by the snapshot engine to store the
-// shape for field-level diff in rg check.
+// shape for field-level diff in regressguard check.
 // Returns empty string and nil if the body is not valid JSON.
 func NormalizeAndHashWithShape(body []byte, ignoreFields []string) (hash string, shapeJSON []byte) {
 	var parsed any

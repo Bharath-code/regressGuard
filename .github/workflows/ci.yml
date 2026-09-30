@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: go build -o rg ./cmd/rg
+      - run: go build -o regressguard ./cmd/regressguard
       - run: npm ci
         working-directory: fixtures/nextjs-app
       - name: break → detect → fix → green

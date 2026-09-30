@@ -16,7 +16,7 @@ import (
 
 func releaseServer(t *testing.T, archive []byte, checksums *string) {
 	t.Helper()
-	name := fmt.Sprintf("rg_9.9.9_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+	name := fmt.Sprintf("regressguard_9.9.9_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	mux := http.NewServeMux()
 	var srv *httptest.Server
 	mux.HandleFunc("/release", func(w http.ResponseWriter, r *http.Request) {

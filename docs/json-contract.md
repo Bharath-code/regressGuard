@@ -1,6 +1,6 @@
-# `rg check --json` output contract
+# `regressguard check --json` output contract
 
-This is the stable, machine-readable contract emitted by `rg check --json` and returned
+This is the stable, machine-readable contract emitted by `regressguard check --json` and returned
 verbatim by the MCP `check` tool. It is the integration surface for AI agents today and the
 intended ingest payload for a future hosted layer (see [`paid-layer-spec.md`](paid-layer-spec.md)).
 
@@ -56,7 +56,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
 
 | `type` | severity | `before` / `after` | Meaning |
 |---|---|---|---|
-| `BASELINE_CHANGED` | CRITICAL | as the underlying change (status int, schema hash, …) | **Added with `rg check --base <ref>`.** The working-tree `snapshot.json` records a different contract than the one committed at `<ref>` for this route. A human must approve it (CODEOWNERS). The same run also reports any real regression vs the `<ref>` baseline as its usual finding. |
+| `BASELINE_CHANGED` | CRITICAL | as the underlying change (status int, schema hash, …) | **Added with `regressguard check --base <ref>`.** The working-tree `snapshot.json` records a different contract than the one committed at `<ref>` for this route. A human must approve it (CODEOWNERS). The same run also reports any real regression vs the `<ref>` baseline as its usual finding. |
 | `tests` | CRITICAL | int / int (passed counts) | New test failures vs baseline (count delta). |
 | `status` | CRITICAL | int / int | HTTP status code changed. A disappeared route uses `before=<status>`, `after=null`. |
 | `schema` | CRITICAL | string / string (8-char hash prefixes) | Response shape changed; see `schemaDiff`. |
@@ -115,7 +115,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
       "message": "GET /api/orders: +420ms slower (40ms -> 460ms)"
     }
   ],
-  "next": "rg check --verbose"
+  "next": "regressguard check --verbose"
 }
 ```
 

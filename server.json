@@ -6,11 +6,11 @@
     "url": "https://github.com/Bharath-code/regressGuard",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/Bharath-code/regressGuard/releases/download/v0.1.0/regressguard.mcpb",
+      "identifier": "https://github.com/Bharath-code/regressGuard/releases/download/v0.2.0/regressguard.mcpb",
       "fileSha256": "4bc81a54bcf19ac6b66490dcf9db35c09f4ccc5fb1db1483468e67a94224094f",
       "transport": {
         "type": "stdio"

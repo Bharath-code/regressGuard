@@ -1,4 +1,4 @@
-// Package upgraderun implements the rg upgrade command.
+// Package upgraderun implements the regressguard upgrade command.
 // It checks GitHub releases for a newer version and optionally replaces
 // the running binary in-place.
 package upgraderun
@@ -37,7 +37,7 @@ type Options struct {
 	Stderr         io.Writer
 }
 
-// Result is the machine-readable outcome of rg upgrade.
+// Result is the machine-readable outcome of regressguard upgrade.
 type Result struct {
 	Status         string `json:"status"` // "updated", "up-to-date", "available"
 	CurrentVersion string `json:"currentVersion"`
@@ -64,9 +64,9 @@ func Run(opts Options) (Result, error) {
 	release, err := fetchLatestRelease()
 	if err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: could not check for updates.",
+			Title:       "regressguard upgrade failed: could not check for updates.",
 			Cause:       err.Error(),
-			Next:        "rg upgrade",
+			Next:        "regressguard upgrade",
 			MoreContext: "https://github.com/" + repo + "/releases",
 		}
 	}
@@ -80,7 +80,7 @@ func Run(opts Options) (Result, error) {
 			Status:         "up-to-date",
 			CurrentVersion: currentVersion,
 			LatestVersion:  latestVersion,
-			Message:        fmt.Sprintf("rg %s is already the latest version.", currentVersion),
+			Message:        fmt.Sprintf("regressguard %s is already the latest version.", currentVersion),
 		}
 		_, _ = fmt.Fprintln(opts.Stdout, paint(opts.Stdout, ui.ColorOK, ui.SymbolPass)+" "+result.Message)
 		return result, nil
@@ -97,16 +97,16 @@ func Run(opts Options) (Result, error) {
 		_, _ = fmt.Fprintln(opts.Stdout, paint(opts.Stdout, ui.ColorInfo, ui.SymbolInfo)+" "+result.Message)
 		_, _ = fmt.Fprintln(opts.Stdout)
 		_, _ = fmt.Fprintln(opts.Stdout, "Run:")
-		_, _ = fmt.Fprintln(opts.Stdout, "  "+paint(opts.Stdout, ui.ColorInfo, "rg upgrade"))
+		_, _ = fmt.Fprintln(opts.Stdout, "  "+paint(opts.Stdout, ui.ColorInfo, "regressguard upgrade"))
 		return result, nil
 	}
 
 	// Determine the correct asset for this OS/arch.
 	osName := runtime.GOOS
 	archName := runtime.GOARCH
-	archiveName := fmt.Sprintf("rg_%s_%s_%s.tar.gz", latestVersion, osName, archName)
+	archiveName := fmt.Sprintf("regressguard_%s_%s_%s.tar.gz", latestVersion, osName, archName)
 	if osName == "windows" {
-		archiveName = fmt.Sprintf("rg_%s_%s_%s.zip", latestVersion, osName, archName)
+		archiveName = fmt.Sprintf("regressguard_%s_%s_%s.zip", latestVersion, osName, archName)
 	}
 
 	assetURL := ""
@@ -122,18 +122,18 @@ func Run(opts Options) (Result, error) {
 
 	if assetURL == "" {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: no binary found for your platform.",
+			Title:       "regressguard upgrade failed: no binary found for your platform.",
 			Cause:       fmt.Sprintf("No asset matching %q in release %s.", archiveName, release.TagName),
 			Next:        "https://github.com/" + repo + "/releases/tag/" + release.TagName,
-			MoreContext: "rg version",
+			MoreContext: "regressguard version",
 		}
 	}
 
 	// Show progress.
-	_, _ = fmt.Fprintf(opts.Stderr, "%s Downloading rg %s (%s/%s)...\n", ui.SymbolRunning, latestVersion, osName, archName)
+	_, _ = fmt.Fprintf(opts.Stderr, "%s Downloading regressguard %s (%s/%s)...\n", ui.SymbolRunning, latestVersion, osName, archName)
 
 	// Download the archive to a temp file.
-	tmpDir, err := os.MkdirTemp("", "rg-upgrade-*")
+	tmpDir, err := os.MkdirTemp("", "regressguard-upgrade-*")
 	if err != nil {
 		return Result{}, fmt.Errorf("create temp dir: %w", err)
 	}
@@ -142,9 +142,9 @@ func Run(opts Options) (Result, error) {
 	archivePath := tmpDir + "/" + archiveName
 	if err := downloadFile(assetURL, archivePath); err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: download error.",
+			Title:       "regressguard upgrade failed: download error.",
 			Cause:       err.Error(),
-			Next:        "rg upgrade",
+			Next:        "regressguard upgrade",
 			MoreContext: "https://github.com/" + repo + "/releases",
 		}
 	}
@@ -152,34 +152,34 @@ func Run(opts Options) (Result, error) {
 	// Checksum verification is mandatory: no checksums.txt means no install.
 	if checksumsURL == "" {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: release has no checksums.txt.",
+			Title:       "regressguard upgrade failed: release has no checksums.txt.",
 			Cause:       "Refusing to install an archive that cannot be verified.",
 			Next:        "https://github.com/" + repo + "/releases/tag/" + release.TagName,
-			MoreContext: "rg version",
+			MoreContext: "regressguard version",
 		}
 	}
 	_, _ = fmt.Fprintf(opts.Stderr, "%s Verifying checksum...\n", ui.SymbolRunning)
 	if err := verifyChecksum(checksumsURL, archivePath, archiveName); err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: checksum verification failed.",
+			Title:       "regressguard upgrade failed: checksum verification failed.",
 			Cause:       err.Error(),
-			Next:        "rg upgrade",
+			Next:        "regressguard upgrade",
 			MoreContext: "https://github.com/" + repo + "/releases",
 		}
 	}
 
 	// Extract the binary.
 	_, _ = fmt.Fprintf(opts.Stderr, "%s Extracting...\n", ui.SymbolRunning)
-	binaryPath := tmpDir + "/rg"
+	binaryPath := tmpDir + "/regressguard"
 	if osName == "windows" {
-		binaryPath = tmpDir + "/rg.exe"
+		binaryPath = tmpDir + "/regressguard.exe"
 	}
 
 	if err := extractArchive(archivePath, tmpDir, osName); err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: extraction error.",
+			Title:       "regressguard upgrade failed: extraction error.",
 			Cause:       err.Error(),
-			Next:        "rg upgrade",
+			Next:        "regressguard upgrade",
 			MoreContext: "https://github.com/" + repo + "/releases",
 		}
 	}
@@ -199,10 +199,10 @@ func Run(opts Options) (Result, error) {
 	_, _ = fmt.Fprintf(opts.Stderr, "%s Replacing %s...\n", ui.SymbolRunning, currentBinary)
 	if err := replaceBinary(binaryPath, currentBinary); err != nil {
 		return Result{}, failures.Actionable{
-			Title:       "rg upgrade failed: could not replace binary.",
+			Title:       "regressguard upgrade failed: could not replace binary.",
 			Cause:       err.Error(),
-			Next:        "sudo rg upgrade",
-			MoreContext: "rg version",
+			Next:        "sudo regressguard upgrade",
+			MoreContext: "regressguard version",
 		}
 	}
 
@@ -217,7 +217,7 @@ func Run(opts Options) (Result, error) {
 	_, _ = fmt.Fprintln(opts.Stdout, paint(opts.Stdout, ui.ColorOK, ui.SymbolPass)+" "+result.Message)
 	_, _ = fmt.Fprintln(opts.Stdout)
 	_, _ = fmt.Fprintln(opts.Stdout, "Verify:")
-	_, _ = fmt.Fprintln(opts.Stdout, "  "+paint(opts.Stdout, ui.ColorInfo, "rg version"))
+	_, _ = fmt.Fprintln(opts.Stdout, "  "+paint(opts.Stdout, ui.ColorInfo, "regressguard version"))
 
 	return result, nil
 }
@@ -361,7 +361,7 @@ func replaceBinary(newPath, targetPath string) error {
 func checkWritable(path string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0)
 	if err != nil {
-		return fmt.Errorf("cannot write to %s (try: sudo rg upgrade)", path)
+		return fmt.Errorf("cannot write to %s (try: sudo regressguard upgrade)", path)
 	}
 	f.Close()
 	return nil

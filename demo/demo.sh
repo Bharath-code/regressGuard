@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Runs the break→detect→fix→green demo against fixtures/nextjs-app.
-# Prereqs: `go build -o rg ./cmd/rg` at repo root; node deps installed in the fixture.
+# Prereqs: `go build -o regressguard ./cmd/regressguard` at repo root; node deps installed in the fixture.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RG="$ROOT/rg"
+RG="$ROOT/regressguard"
 FIXTURE="$ROOT/fixtures/nextjs-app"
 cd "$FIXTURE"
 
@@ -45,7 +45,7 @@ echo "── 2. An AI agent 'improves' the code (silently drops a field) ──"
 sed -i.bak '/subscription: "pro",/d' app/api/profile/route.ts && rm -f app/api/profile/route.ts.bak
 
 echo
-echo "── 3. rg check catches it before the commit ───────────"
+echo "── 3. regressguard check catches it before the commit ───────────"
 # Doubles as the e2e smoke test (CI): each step asserts, so a broken core fails loudly.
 if "$RG" check; then echo "FAIL: regression not detected" >&2; exit 1; fi
 

@@ -191,8 +191,8 @@ func List(projectRoot string) ([]ListEntry, error) {
 		return nil, failures.Actionable{
 			Title:       "No snapshot available",
 			Cause:       "No snapshot.json found — nothing to list",
-			Next:        "rg snapshot",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 
@@ -255,8 +255,8 @@ func Resolve(projectRoot string, ref string, idx Index) (snapshot.Snapshot, Reso
 		return snapshot.Snapshot{}, ResolvedMeta{}, failures.Actionable{
 			Title:       "Snapshot not found",
 			Cause:       fmt.Sprintf("Reference %q does not match any known format (latest, ~N, or git commit hash)", ref),
-			Next:        "rg diff --list",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard diff --list",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 }
@@ -268,8 +268,8 @@ func resolveLatest(projectRoot string) (snapshot.Snapshot, ResolvedMeta, error) 
 		return snapshot.Snapshot{}, ResolvedMeta{}, failures.Actionable{
 			Title:       "Snapshot file missing",
 			Cause:       fmt.Sprintf("Could not load snapshot.json: %v", err),
-			Next:        "rg snapshot",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 	meta := ResolvedMeta{
@@ -289,8 +289,8 @@ func resolveTilde(projectRoot string, ref string, idx Index) (snapshot.Snapshot,
 		return snapshot.Snapshot{}, ResolvedMeta{}, failures.Actionable{
 			Title:       "Snapshot not found",
 			Cause:       fmt.Sprintf("~N requires N >= 1, got ~%d", n),
-			Next:        "rg diff --list",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard diff --list",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 
@@ -298,8 +298,8 @@ func resolveTilde(projectRoot string, ref string, idx Index) (snapshot.Snapshot,
 		return snapshot.Snapshot{}, ResolvedMeta{}, failures.Actionable{
 			Title:       "Snapshot not found",
 			Cause:       fmt.Sprintf("Only %d historical snapshots available, but ~%d was requested", len(idx.Entries), n),
-			Next:        "rg diff --list",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard diff --list",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 
@@ -332,8 +332,8 @@ func resolveCommit(projectRoot string, ref string, idx Index) (snapshot.Snapshot
 		return snapshot.Snapshot{}, ResolvedMeta{}, failures.Actionable{
 			Title:       "Snapshot not found",
 			Cause:       fmt.Sprintf("No snapshot matches commit prefix %q", ref),
-			Next:        "rg diff --list",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard diff --list",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 
@@ -355,7 +355,7 @@ func resolveCommit(projectRoot string, ref string, idx Index) (snapshot.Snapshot
 			Title:       "Ambiguous snapshot reference",
 			Cause:       cause,
 			Next:        "Use a longer commit prefix to narrow the match",
-			MoreContext: "rg diff --list",
+			MoreContext: "regressguard diff --list",
 		}
 	}
 
@@ -381,8 +381,8 @@ func loadArchiveFile(projectRoot string, filename string) (snapshot.Snapshot, er
 		return snapshot.Snapshot{}, failures.Actionable{
 			Title:       "Snapshot file missing",
 			Cause:       fmt.Sprintf("Referenced file %q is missing from disk", filename),
-			Next:        "rg snapshot",
-			MoreContext: "rg diff --help",
+			Next:        "regressguard snapshot",
+			MoreContext: "regressguard diff --help",
 		}
 	}
 

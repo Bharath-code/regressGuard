@@ -20,7 +20,7 @@ The PRD is the product, UX, architecture, and delivery tracker. Section 11 is th
 
 - **Language:** Go 1.24+
 - **CLI Framework:** [Cobra](https://github.com/spf13/cobra) — command tree, flags, shell completions
-- **Interactive Prompts:** [Charm huh](https://github.com/charmbracelet/huh) — guided `rg init` flow (TTY only)
+- **Interactive Prompts:** [Charm huh](https://github.com/charmbracelet/huh) — guided `regressguard init` flow (TTY only)
 - **Spinners & Progress:** [Charm Bubbles](https://github.com/charmbracelet/bubbles) + [Bubble Tea](https://github.com/charmbracelet/bubbletea) — phase spinners, route progress tables, elapsed timers
 - **Terminal Styling:** [Lip Gloss](https://github.com/charmbracelet/lipgloss) — color tokens, banners, styled output
 - **TTY Detection:** `mattn/go-isatty` + `charmbracelet/x/term`
@@ -28,22 +28,22 @@ The PRD is the product, UX, architecture, and delivery tracker. Section 11 is th
 ## Project Structure
 
 ```
-cmd/rg/main.go           # CLI entry point
+cmd/regressguard/main.go           # CLI entry point
 internal/
   cli/                   # Cobra command wiring, help templates
   config/                # Config read/write/validation, env var resolution
-  configrun/             # rg config get/set implementation
-  checkrun/              # rg check pipeline (load, rerun, diff, render)
-  doctorrun/             # rg doctor diagnostics
+  configrun/             # regressguard config get/set implementation
+  checkrun/              # regressguard check pipeline (load, rerun, diff, render)
+  doctorrun/             # regressguard doctor diagnostics
   engine/                # Core logic: test runner, route hitter, normalizer, diff
   failures/              # Actionable error type (title, cause, next, moreContext)
-  hookrun/               # rg hook install/uninstall
-  initrun/               # rg init (interactive + non-interactive)
+  hookrun/               # regressguard hook install/uninstall
+  initrun/               # regressguard init (interactive + non-interactive)
   scanner/               # Project detection, route discovery
   snapshot/              # Snapshot read/write
-  snapshotrun/           # rg snapshot pipeline
+  snapshotrun/           # regressguard snapshot pipeline
   state/                 # Local state (.regressguard/state.json) — streaks, flags
-  statusrun/             # rg status quick-glance command
+  statusrun/             # regressguard status quick-glance command
   ui/                    # Design system tokens, components, animations
     style.go             # Symbols, colors, MaxWidth, ColorEnabled(), Paint()
     theme.go             # Lip Gloss style definitions
@@ -91,7 +91,7 @@ internal/
   - `Title`: what went wrong
   - `Cause`: likely reason
   - `Next`: copy-pasteable command to fix it
-  - `MoreContext`: deeper debugging path (usually `--help` or `rg doctor`)
+  - `MoreContext`: deeper debugging path (usually `--help` or `regressguard doctor`)
 - The CLI layer in `cli.go` renders `Actionable` errors with color when not in JSON mode.
 - In `--json` mode, errors are serialized as `{"status":"error","error":{...}}`.
 
@@ -121,8 +121,8 @@ CI stamps the release values at publish time.
 
 1. Build/upload platform tarballs to the GitHub release (existing flow).
 2. Rebuild the MCPB bundle: extract the 4 binaries (darwin/linux × amd64/arm64) into
-   `bundle/bin/rg-<os>-<arch>`, alongside `run.sh` (uname-based binary picker that execs
-   `rg mcp serve`) and `manifest.json` (MCPB spec 0.3, `server.type: binary`,
+   `bundle/bin/regressguard-<os>-<arch>`, alongside `run.sh` (uname-based binary picker that execs
+   `regressguard mcp serve`) and `manifest.json` (MCPB spec 0.3, `server.type: binary`,
    command `/bin/sh ${__dirname}/run.sh`). Bump `version` in `manifest.json`.
 3. Pack + validate: `npx -y @anthropic-ai/mcpb pack bundle regressguard.mcpb`.
 4. Smoke test: pipe an MCP `initialize` request into `sh bundle/run.sh`, expect a JSON-RPC result.

@@ -42,8 +42,8 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p bundle/bin
           for t in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
-            tar xzf "dist/rg_${VERSION}_${t}.tar.gz" -C bundle/bin rg
-            mv bundle/bin/rg "bundle/bin/rg-${t/_/-}"
+            tar xzf "dist/regressguard_${VERSION}_${t}.tar.gz" -C bundle/bin regressguard
+            mv bundle/bin/regressguard "bundle/bin/regressguard-${t/_/-}"
           done
           cp mcpb/run.sh bundle/run.sh
           jq --arg v "$VERSION" '.version = $v' mcpb/manifest.json > bundle/manifest.json

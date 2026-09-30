@@ -1,4 +1,4 @@
-// Package mcprun implements the rg mcp serve command.
+// Package mcprun implements the regressguard mcp serve command.
 // It exposes check and status as MCP tools over stdio transport, allowing AI
 // agents (Claude Code, Cursor, etc.) to verify their own edits. snapshot is
 // exposed only when config sets mcp.allowSnapshot: the baseline is human-owned.

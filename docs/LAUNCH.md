@@ -43,13 +43,13 @@ version evolves).
 ## 3. Claude Code plugin (~20 min)
 
 `.claude-plugin/plugin.json` + `.mcp.json` make this repo installable as a plugin: the
-MCP server (`rg mcp serve`) is registered automatically on install. Note: users still
-need the `rg` binary on PATH (install.sh / brew) — the plugin wires it up, it does not
+MCP server (`regressguard mcp serve`) is registered automatically on install. Note: users still
+need the `regressguard` binary on PATH (install.sh / brew) — the plugin wires it up, it does not
 ship the binary.
 
 - [ ] Test locally: `claude plugin install Bharath-code/regressguard@github` (or add the
       repo as a marketplace: `/plugin marketplace add Bharath-code/regressguard`), then in
-      a project: `rg init && rg snapshot`, ask Claude to verify a change — it should call
+      a project: `regressguard init && regressguard snapshot`, ask Claude to verify a change — it should call
       the `check` MCP tool.
 - [ ] Submit to community plugin directories (search current ones — e.g.
       `anthropics/claude-code` discussions and the popular community marketplace repos —
@@ -86,7 +86,7 @@ Body draft:
 
 - [ ] Watch: GitHub stars, clones (Insights → Traffic), Action installs, registry pulls.
 - [ ] Gate from `docs/full-analysis-2026-07.md`: ~200 stars AND ≥25 repos with repeat
-      weekly `rg check` by early October 2026. Log weekly numbers at the bottom of this
+      weekly `regressguard check` by early October 2026. Log weekly numbers at the bottom of this
       file.
 
 ## Week log

@@ -23,13 +23,13 @@ func TestDoctor_flagsStaleBareRGHook(t *testing.T) {
 	ok := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stdout})
 
 	if ok {
-		t.Error("doctor should fail when the hook uses bare 'rg' (ripgrep collision)")
+		t.Error("doctor should fail when the hook calls the old 'rg' binary")
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "bare 'rg'") {
+	if !strings.Contains(out, "old 'rg' binary") {
 		t.Errorf("expected stale-hook diagnosis in output\nGot:\n%s", out)
 	}
-	if !strings.Contains(out, "rg hook install") {
+	if !strings.Contains(out, "regressguard hook install") {
 		t.Errorf("expected reinstall fix in output\nGot:\n%s", out)
 	}
 }
@@ -48,7 +48,7 @@ func TestDoctor_okWithFixedHook(t *testing.T) {
 	var stdout bytes.Buffer
 	Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stdout})
 
-	if strings.Contains(stdout.String(), "bare 'rg'") {
+	if strings.Contains(stdout.String(), "old 'rg' binary") {
 		t.Errorf("absolute-path hook should not be flagged\nGot:\n%s", stdout.String())
 	}
 }

@@ -6,7 +6,7 @@ RegressGuard handles sensitive data: auth tokens, API responses, and project con
 
 1. **Secret leakage** — tokens stored in plain text in committed files
 2. **Stale credentials** — forgotten tokens that should have been rotated
-3. **Snapshot tampering** — modified baselines that hide regressions (mitigated by `rg check --base` + CODEOWNERS, not by a local signature)
+3. **Snapshot tampering** — modified baselines that hide regressions (mitigated by `regressguard check --base` + CODEOWNERS, not by a local signature)
 4. **Supply-chain attacks** — compromised binaries during self-update
 5. **Agent overreach** — MCP-connected agents accessing unrelated directories
 6. **Audit gaps** — no visibility into what AI agents are doing via MCP
@@ -17,11 +17,11 @@ RegressGuard handles sensitive data: auth tokens, API responses, and project con
 
 **Problem:** Developers set up auth tokens and forget about them. Stale tokens are a security risk — they may have been compromised or should be rotated per policy.
 
-**Solution:** `rg doctor` checks the modification time of `.regressguard/.env`. If the file is older than 30 days, it prints a warning suggesting token rotation.
+**Solution:** `regressguard doctor` checks the modification time of `.regressguard/.env`. If the file is older than 30 days, it prints a warning suggesting token rotation.
 
 **Usage:**
 ```
-$ rg doctor
+$ regressguard doctor
 ! Token age    .regressguard/.env is 45 days old — consider rotating secrets
   Tip: Update your token and run: touch .regressguard/.env
 ```
@@ -41,7 +41,7 @@ $ rg doctor
 ```
 
 ```
-$ rg config set redactFields "internalUserId,adminFlag"
+$ regressguard config set redactFields "internalUserId,adminFlag"
 ```
 
 ### S3: Config File Permissions
@@ -50,11 +50,11 @@ $ rg config set redactFields "internalUserId,adminFlag"
 
 **Solution:**
 - `config.WriteEnvFile()` creates `.env` with `0600` (owner-only read/write)
-- `rg doctor` checks file permissions and warns if world-readable
+- `regressguard doctor` checks file permissions and warns if world-readable
 
 **Usage:**
 ```
-$ rg doctor
+$ regressguard doctor
 ! Env file     .regressguard/.env has unsafe permissions 0644 — should be 0600
   Fix: chmod 600 .regressguard/.env
 ```
@@ -63,11 +63,11 @@ $ rg doctor
 
 **Problem:** A compromised or misconfigured AI agent connected via MCP could run checks in unrelated directories, potentially accessing sensitive projects.
 
-**Solution:** `rg mcp serve --project-root <dir>` resolves the path to an absolute directory and restricts all operations (check, snapshot, status) to that directory. The path is validated on startup.
+**Solution:** `regressguard mcp serve --project-root <dir>` resolves the path to an absolute directory and restricts all operations (check, snapshot, status) to that directory. The path is validated on startup.
 
 **Usage:**
 ```
-$ rg mcp serve --project-root /home/user/my-project
+$ regressguard mcp serve --project-root /home/user/my-project
 ```
 
 In MCP config:
@@ -82,12 +82,12 @@ In MCP config:
 
 **Problem:** SHA-256 checksums verify download integrity but not authenticity. If an attacker compromises the GitHub release, they can replace both the binary and the checksum file.
 
-**Solution:** `rg upgrade` looks for a `.sig` or `.asc` file alongside the release archive. If found and `gpg` is available, it verifies the signature. Failure is non-blocking (warns and continues with checksum-only verification) since not all users have GPG configured.
+**Solution:** `regressguard upgrade` looks for a `.sig` or `.asc` file alongside the release archive. If found and `gpg` is available, it verifies the signature. Failure is non-blocking (warns and continues with checksum-only verification) since not all users have GPG configured.
 
 **Usage:**
 ```
-$ rg upgrade
-> Downloading rg 0.2.0 (darwin/arm64)...
+$ regressguard upgrade
+> Downloading regressguard 0.2.0 (darwin/arm64)...
 > Verifying checksum...
 > Verifying GPG signature...
 OK Updated: 0.1.0 -> 0.2.0
@@ -108,7 +108,7 @@ OK Updated: 0.1.0 -> 0.2.0
 
 ### S7: Snapshot tamper resistance (HMAC removed in v0.2.0)
 
-The path-derived HMAC was removed: its key was `sha256(salt + absolute path)`, so anyone (including an agent) could recompute it, and it warned on legitimate clones at different paths. Baseline authority is now git: run `rg check --base <ref>` in CI so the baseline comes from the protected branch, and protect `.regressguard/snapshot.json` with CODEOWNERS. `rg doctor` deletes a stale `.regressguard/snapshot.hmac`.
+The path-derived HMAC was removed: its key was `sha256(salt + absolute path)`, so anyone (including an agent) could recompute it, and it warned on legitimate clones at different paths. Baseline authority is now git: run `regressguard check --base <ref>` in CI so the baseline comes from the protected branch, and protect `.regressguard/snapshot.json` with CODEOWNERS. `regressguard doctor` deletes a stale `.regressguard/snapshot.hmac`.
 
 ## File Changes
 
@@ -119,6 +119,6 @@ The path-derived HMAC was removed: its key was `sha256(salt + absolute path)`, s
 | `internal/doctorrun/doctorrun.go` | Added S1 (token age) and S3 (permissions) checks |
 | `internal/mcprun/mcprun.go` | Added S4 (path validation) and S6 (audit logging) |
 | `internal/upgraderun/upgraderun.go` | Added S5 (GPG signature verification) |
-| `internal/cli/cli.go` | Added `--project-root` flag to `rg mcp serve` |
+| `internal/cli/cli.go` | Added `--project-root` flag to `regressguard mcp serve` |
 | `internal/configrun/configrun.go` | Added `redactFields` get/set support |
 | `internal/snapshotrun/snapshotrun.go` | Pass `RedactFields` to `snapshot.Write()` |
