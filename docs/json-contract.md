@@ -25,7 +25,7 @@ and must bump the snapshot/contract version and be called out in the changelog.
 | `summary.warnings` | int | Count of WARNING findings (timing + unverified). |
 | `summary.passed` | int | Routes that produced **no finding at all**. A route with only a WARNING is *not* counted here. |
 | `results` | array | One entry per finding. Empty on a clean pass. |
-| `next` | string | Suggested next command for the operator/agent. |
+| `next` | string | Suggested next command for the operator/agent. Never a re-baseline (`snapshot`) command: a human approves baseline changes in PR review. |
 
 ## `CheckFinding` object
 

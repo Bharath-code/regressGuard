@@ -10,6 +10,10 @@ versioning follows [SemVer](https://semver.org/).
 
 - `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
 
+### Security
+
+- The guard no longer tells agents how to re-baseline. Unreadable/incompatible-baseline errors, `rg explain` and stale-baseline `rg status` hints now say a human must approve a baseline change; `next` in JSON/MCP output never names `snapshot`. (First-time "no snapshot found" still points at `rg snapshot`: there is no baseline to bypass yet.)
+
 ### Removed
 
 - Snapshot HMAC (`snapshot.hmac`, "integrity warning"). The key was derived from the project path, so it was forgeable and false-alarmed across clones. Use `rg check --base` + CODEOWNERS; `rg doctor` deletes the stale file.

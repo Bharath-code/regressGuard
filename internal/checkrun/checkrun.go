@@ -516,7 +516,7 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 		return snapshot.Snapshot{}, failures.Actionable{
 			Title:       "rg check failed: snapshot is unreadable.",
 			Cause:       err.Error(),
-			Next:        "rg snapshot",
+			Next:        "Ask a human to restore or re-record the baseline (reviewed in PR)",
 			MoreContext: "rg check --help",
 		}
 	}
@@ -527,7 +527,7 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 				snap.Version, snapshot.Version,
 			),
 			Cause:       "The snapshot was created by a different version of RegressGuard.",
-			Next:        "rg snapshot",
+			Next:        "Ask a human to restore or re-record the baseline (reviewed in PR)",
 			MoreContext: "rg check --help",
 		}
 	}

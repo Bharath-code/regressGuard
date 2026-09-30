@@ -216,6 +216,72 @@ func TestCheckHandler_success_returnsJSONAndAudits(t *testing.T) {
 	}
 }
 
+func TestCheckHandler_critical_neverSuggestsRebaseline(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	testCmd := makeTestScript(t, dir, 5)
+	if err := config.Write(dir, config.Config{
+		Version:     1,
+		TestCommand: testCmd,
+		ServerURL:   srv.URL,
+		Routes:      []config.Route{{Method: "GET", Path: "/api/health"}},
+	}); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	key := snapshot.RouteKey("GET", "/api/health")
+	if err := snapshot.Write(dir, snapshot.Snapshot{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Tests:     snapshot.TestSummary{Passed: 5, Failed: 0},
+		Routes: map[string]snapshot.RouteRecord{
+			key: {Method: "GET", Path: "/api/health", Status: 200, SchemaHash: "", MS: 20},
+		},
+	}); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+
+	res, err := makeCheckHandler(dir, newAuditLogger(dir))(context.Background(), callReq("check", map[string]any{}))
+	if err != nil {
+		t.Fatalf("unexpected transport error: %v", err)
+	}
+	text := resultText(t, res)
+	if !strings.Contains(text, "critical") {
+		t.Fatalf("expected a critical result, got: %s", text)
+	}
+	if strings.Contains(strings.ToLower(text), "rg snapshot") {
+		t.Errorf("agent-facing check output must not suggest re-recording the baseline:\n%s", text)
+	}
+}
+
+func TestCheckHandler_unreadableSnapshot_neverSuggestsRebaseline(t *testing.T) {
+	dir := t.TempDir()
+	if err := config.Write(dir, config.Config{
+		Version:     1,
+		TestCommand: "true",
+		ServerURL:   "http://127.0.0.1:1",
+		Routes:      []config.Route{{Method: "GET", Path: "/x"}},
+	}); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, snapshot.DirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(snapshot.Path(dir), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := makeCheckHandler(dir, newAuditLogger(dir))(context.Background(), callReq("check", map[string]any{}))
+	if err != nil {
+		t.Fatalf("unexpected transport error: %v", err)
+	}
+	if text := resultText(t, res); !strings.Contains(text, "unreadable") || strings.Contains(strings.ToLower(text), "rg snapshot") {
+		t.Errorf("unreadable-baseline error must not hand the agent the re-record command:\n%s", text)
+	}
+}
+
 // --- status tool: happy path (no server required) ---
 
 func TestStatusHandler_success(t *testing.T) {

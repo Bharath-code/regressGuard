@@ -119,8 +119,8 @@ func TestRun_incompatibleSnapshotVersion(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for incompatible snapshot version")
 	}
-	if !strings.Contains(err.Error(), "rg snapshot") {
-		t.Errorf("error should suggest 'rg snapshot', got: %v", err)
+	if strings.Contains(err.Error(), "rg snapshot") || !strings.Contains(err.Error(), "human") {
+		t.Errorf("error should hand re-baselining to a human, not name the command, got: %v", err)
 	}
 }
 
