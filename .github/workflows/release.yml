@@ -9,6 +9,10 @@ permissions:
   id-token: write # MCP registry OIDC auth + provenance
   attestations: write # build provenance
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: ubuntu-latest

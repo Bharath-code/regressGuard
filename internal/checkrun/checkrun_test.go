@@ -625,10 +625,23 @@ func TestRun_snapshotAgeWarning_staleSnapshot(t *testing.T) {
 		},
 	})
 
+	before, err := os.ReadFile(snapshot.Path(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	var stdout, stderr bytes.Buffer
 	result, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	after, err := os.ReadFile(snapshot.Path(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("check must never rewrite the baseline, even when stale and passing")
 	}
 
 	// Warning should appear on stderr.
