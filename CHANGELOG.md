@@ -6,6 +6,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 
 - `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
