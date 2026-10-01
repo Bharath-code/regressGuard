@@ -449,9 +449,6 @@ func loadConfig(root string) (config.Config, error) {
 			MoreContext: "regressguard check --help",
 		}
 	}
-	if cfg.TestCommand == "" {
-		return config.Config{}, failures.MissingTestCommand()
-	}
 	return cfg, nil
 }
 

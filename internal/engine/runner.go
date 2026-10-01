@@ -51,8 +51,9 @@ var (
 // Output is streamed to progressWriter (stderr) when non-nil.
 // The command is run with a 5-minute timeout.
 func RunTests(testCommand string, workDir string, progressWriter io.Writer) (TestResult, error) {
+	// No test command: route contracts are still checked, tests are skipped.
 	if strings.TrimSpace(testCommand) == "" {
-		return TestResult{}, fmt.Errorf("no test command configured")
+		return TestResult{}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

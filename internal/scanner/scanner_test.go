@@ -324,3 +324,77 @@ func writeFile(t *testing.T, path string, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestDiscoverNextAppRoutes_reexportedHandlers(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "app", "api", "newsletter", "route.ts"), `
+		const handler = NewsletterAPI({})
+		export { handler as GET, handler as POST }
+	`)
+
+	routes, err := DiscoverNextAppRoutes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 2 || routes[0].Method != "GET" || routes[1].Method != "POST" {
+		t.Fatalf("routes = %#v, want GET and POST /api/newsletter", routes)
+	}
+}
+
+func TestDiscoverNextAppRoutes_otherExtensions(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "app", "api", "og", "route.tsx"), `export async function GET() {}`)
+	writeFile(t, filepath.Join(root, "app", "api", "legacy", "route.js"), `export const GET = () => {}`)
+	writeFile(t, filepath.Join(root, "app", "api", "esm", "route.mjs"), `export function POST() {}`)
+
+	routes, err := DiscoverNextAppRoutes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 3 {
+		t.Fatalf("routes = %#v, want 3", routes)
+	}
+}
+
+func TestDetectFramework_nextPagesRouterIsNotAppRouter(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "package.json"), `{"dependencies":{"next":"^14.0.0"}}`)
+	writeFile(t, filepath.Join(root, "pages", "index.js"), `export default function Home() {}`)
+
+	detection, err := Detect(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detection.Framework != "nextjs-pages-router" {
+		t.Fatalf("framework = %q, want nextjs-pages-router", detection.Framework)
+	}
+}
+
+func TestDetectFramework_nextWithAppDirIsAppRouter(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "package.json"), `{"dependencies":{"next":"^15.0.0"}}`)
+	writeFile(t, filepath.Join(root, "src", "app", "page.tsx"), `export default function Home() {}`)
+
+	detection, err := Detect(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detection.Framework != "nextjs-app-router" {
+		t.Fatalf("framework = %q", detection.Framework)
+	}
+}
+
+func TestDiscoverNextAppRoutes_destructuredExport(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "app", "api", "chat", "route.ts"), `
+		export const { POST, maxDuration } = createChatRoute({})
+	`)
+
+	routes, err := DiscoverNextAppRoutes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || routes[0].Method != "POST" || routes[0].Path != "/api/chat" {
+		t.Fatalf("routes = %#v, want POST /api/chat", routes)
+	}
+}

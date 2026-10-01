@@ -42,10 +42,10 @@ func ServerUnavailable(url string) Actionable {
 
 func MissingTestCommand() Actionable {
 	return Actionable{
-		Title:       "regressguard test run failed: no test command configured.",
-		Cause:       "RegressGuard could not infer how to run this project's tests.",
-		Next:        "regressguard config set testCommand \"npm test\"",
-		MoreContext: "regressguard config --help",
+		Title:       "regressguard init failed: nothing to protect yet.",
+		Cause:       "No test command was found and no API routes were discovered.",
+		Next:        "regressguard init --test-command \"npm test\"",
+		MoreContext: "regressguard init --help",
 	}
 }
 

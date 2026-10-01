@@ -50,3 +50,16 @@ Items 1 and 2 are the likeliest first-run friction for real users. Whether to fi
 ## Next
 
 A real FP rate needs repos that capture routes and have a working test command. Next candidates: Express apps with `app.get(...)` routes and a test script, and Next.js app-router repos with several `route.ts` GET handlers.
+
+## Follow-up fixes (post-study)
+
+Fixed in the next release, each with a failing test first: `init` without a test script (route-only mode),
+`route.tsx/.js/.mjs` files, re-exported and destructured handler exports (newsletter, `/api/chat`), and the pages-router mislabel.
+Re-verified on the study repos: next-app-router-playground now captures `/api/og` and stays stable over 3 checks;
+tailwind-nextjs-starter-blog now finds GET and POST `/api/newsletter`; swr-site now finds `/api/chat`.
+
+Deliberately not fixed:
+- plain `http` and json-server apps: new stack support, frozen by AGENTS.md until a PRD change;
+- Next.js pages-router API discovery: same reason;
+- non-GET-only routes (PUT-only is skipped): the route hitter only probes safe requests;
+- content routes outside `app/api` such as `[lang]/rss.xml`: not API routes and need dynamic params.
