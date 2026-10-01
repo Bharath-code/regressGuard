@@ -148,9 +148,9 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
 
 ### T3.1 Public-repo false-positive study
 - **Acceptance:**
-  - [ ] 10 public Next.js/Express repos: snapshot → check ×3 with no code change.
-  - [ ] FP rate published (table: repo, routes, FP count, cause) in `docs/fp-study-2026-10.md`.
-  - [ ] Any FP class with ≥2 occurrences gets a failing test first, then a fix.
+  - [x] 10 public Next.js/Express repos: snapshot → check ×3 with no code change. (10 ran, 2 skipped; only 4 captured routes, see study.)
+  - [x] FP rate published (table: repo, routes, FP count, cause) in `docs/fp-study-2026-10.md`. (0 FPs in 30 checks, but weak evidence: 6 of 10 repos captured 0 routes.)
+  - [x] Any FP class with ≥2 occurrences gets a failing test first, then a fix. (None occurred. Route-discovery gaps logged as findings, not fixed.)
 
 ### T3.2 10 user conversations
 - **Acceptance:**
