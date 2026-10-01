@@ -161,6 +161,7 @@ func Run(opts Options) (Result, error) {
 	// W2: suggest git hook auto-install after init (interactive only, not --yes batch).
 	if opts.Interactive && !opts.Yes {
 		offerHookInstall(opts, detected.Root)
+		offerClaudeHook(opts, detected.Root)
 	}
 
 	return result, nil
@@ -441,6 +442,33 @@ func offerHookInstall(opts Options, projectRoot string) {
 	})
 	if err != nil {
 		_, _ = fmt.Fprintf(opts.Stderr, "%s Hook install failed: %v\n",
+			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
+	}
+}
+
+// offerClaudeHook offers the Claude Code Stop hook. TTY only, and only when the
+// project already has a .claude/ directory; CI and piped runs are skipped.
+func offerClaudeHook(opts Options, projectRoot string) {
+	if _, err := os.Stat(filepath.Join(projectRoot, ".claude")); err != nil {
+		return
+	}
+	if _, ok := opts.Stdin.(*os.File); !ok || !ui.IsTerminal(opts.Stdin) {
+		return
+	}
+	install := true
+	err := huh.NewConfirm().
+		Title("Install Claude Code Stop hook?").
+		Description("Blocks the agent from finishing while regressguard check is CRITICAL").
+		Affirmative("Yes, install").
+		Negative("No, skip").
+		Value(&install).
+		WithTheme(regressGuardTheme()).
+		Run()
+	if err != nil || !install {
+		return
+	}
+	if _, err := hookrun.InstallClaude(hookrun.ClaudeOptions{ProjectRoot: projectRoot, Stdout: opts.Stdout}); err != nil {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Claude hook install failed: %v\n",
 			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
 	}
 }

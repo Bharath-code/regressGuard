@@ -6,6 +6,11 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `regressguard check` no longer rewrites a stale baseline when it passes. The silent refresh let timing drift ratchet into the baseline and let any agent move it by running `check`; baseline changes now only happen via `regressguard snapshot`.
+- Release workflow: `concurrency` group so a duplicate tag-push run cancels instead of failing on already-uploaded assets.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

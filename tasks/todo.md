@@ -108,9 +108,9 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
   script, `.mcpb` manifest, all user-facing strings (`rg check` → `regressguard check`), and the `doctor` ripgrep check. Bump
   `server.json` to 0.2.0. Rebuild `.mcpb` and republish per AGENTS.md "Release & MCP Registry Publish".
 - **Acceptance:**
-  - [ ] `curl` MCP registry API → `io.github.Bharath-code/regressguard` shows 0.2.0.
+  - [x] `curl` MCP registry API → `io.github.Bharath-code/regressguard` shows 0.2.0.
   - [ ] Cold-start e2e (per `docs/e2e-testing-guide.md`) passes on the released binary, not a local build.
-  - [ ] `grep -rnw 'rg' README.md docs/*.md internal/ --include='*.go' --include='*.md'` → only historical/changelog hits.
+  - [x] `grep -rnw 'rg' README.md docs/*.md internal/ --include='*.go' --include='*.md'` → only historical/changelog hits.
   - [ ] The installer removes nothing the user owns. It prints one line if an old `rg` from RegressGuard is on PATH.
 
 ---
@@ -123,8 +123,8 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
   when `.claude/` exists (TTY only, default yes; skipped in CI and non-TTY). The hook runs
   `regressguard check --json` and exits 2 on CRITICAL, so the agent can't report "done".
 - **Acceptance:**
-  - [ ] Idempotent: running it twice leaves one hook entry.
-  - [ ] Existing hooks and settings are preserved (golden-file test).
+  - [x] Idempotent: running it twice leaves one hook entry.
+  - [x] Existing hooks and settings are preserved (golden-file test).
   - [ ] Manual: in Claude Code, break a route → agent Stop blocked with the diff. Fix → Stop allowed. Recorded as GIF.
 
 ### T2.2 20-second break→block→fix GIF

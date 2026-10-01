@@ -428,12 +428,6 @@ func Run(opts Options) (Result, error) {
 	// E12-T4: update check streak in state.
 	streak := updateStreak(opts.ProjectRoot, result.Status)
 
-	// W3: snapshot auto-refresh — when check passes and snapshot is stale (>24h),
-	// silently update the snapshot so the user doesn't get repeated stale warnings.
-	if result.Status == "pass" && opts.Base == "" && time.Since(snap.CreatedAt) > 24*time.Hour {
-		autoRefreshSnapshot(opts, afterSnap)
-	}
-
 	return result, writeHuman(opts.Stdout, opts.Stderr, result, diff, snap, afterSnap, gitFiles, time.Since(startTime), streak, opts.ProjectRoot)
 }
 
@@ -1055,37 +1049,4 @@ func withDefaults(opts Options) Options {
 		opts.Stderr = os.Stderr
 	}
 	return opts
-}
-
-// autoRefreshSnapshot silently updates the snapshot when check passes and
-// the existing snapshot is stale (>24h). This prevents repeated stale warnings
-// without requiring the user to manually run regressguard snapshot.
-func autoRefreshSnapshot(opts Options, afterSnap snapshot.Snapshot) {
-	// Build a fresh snapshot from the current check results. Never persist
-	// Unverified routes into a baseline — a baseline must only contain measured
-	// state. (Unverified implies WARNING, so this path is normally unreachable
-	// on a pass, but the filter keeps the invariant explicit.)
-	routes := make(map[string]snapshot.RouteRecord, len(afterSnap.Routes))
-	for key, rec := range afterSnap.Routes {
-		if rec.Unverified {
-			continue
-		}
-		routes[key] = rec
-	}
-	refreshed := snapshot.Snapshot{
-		Version:   snapshot.Version,
-		CreatedAt: time.Now().UTC(),
-		GitCommit: snapshot.GitCommit(opts.ProjectRoot),
-		Tests:     afterSnap.Tests,
-		Routes:    routes,
-	}
-
-	if err := snapshot.Write(opts.ProjectRoot, refreshed); err != nil {
-		// Silently ignore — this is a convenience feature, not critical.
-		return
-	}
-
-	// Print a subtle note on stderr so the user knows it happened.
-	_, _ = fmt.Fprintf(opts.Stderr, "%s Snapshot auto-refreshed (was stale).\n",
-		ui.Paint(opts.Stderr, ui.ColorMuted, ui.SymbolInfo))
 }
