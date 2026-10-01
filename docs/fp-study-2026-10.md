@@ -61,5 +61,5 @@ tailwind-nextjs-starter-blog now finds GET and POST `/api/newsletter`; swr-site 
 Deliberately not fixed:
 - plain `http` and json-server apps: new stack support, frozen by AGENTS.md until a PRD change;
 - Next.js pages-router API discovery: same reason;
-- non-GET-only routes (PUT-only is skipped): the route hitter only probes safe requests;
+- PUT/POST/PATCH routes are discovered but skipped at hit time unless a request body is configured (`requiresBody` in `internal/engine`), so they are not protected by default;
 - content routes outside `app/api` such as `[lang]/rss.xml`: not API routes and need dynamic params.
