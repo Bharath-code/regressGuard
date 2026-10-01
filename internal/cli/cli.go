@@ -360,8 +360,9 @@ func newStatusCommand() *cobra.Command {
 
 func newHookCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "hook",
-		Short: "Install or remove git hooks",
+		Use:     "hook",
+		Aliases: []string{"hooks"},
+		Short:   "Install or remove git hooks",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
@@ -375,12 +376,17 @@ func newHookCommand() *cobra.Command {
 func newHookInstallCommand() *cobra.Command {
 	cmd := stubCommand("install", "Install the pre-commit hook", "regressguard hook install")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if claude, _ := cmd.Flags().GetBool("claude"); claude {
+			_, err := hookrun.InstallClaude(hookrun.ClaudeOptions{Stdout: cmd.OutOrStdout()})
+			return err
+		}
 		_, err := hookrun.Install(hookrun.InstallOptions{
 			Stdout: cmd.OutOrStdout(),
 			Stderr: cmd.ErrOrStderr(),
 		})
 		return err
 	}
+	cmd.Flags().Bool("claude", false, "install a Claude Code Stop hook (.claude/settings.json) instead of the git pre-commit hook")
 	return cmd
 }
 
