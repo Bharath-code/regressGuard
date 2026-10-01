@@ -109,9 +109,9 @@ Thesis: an agent must not be able to talk the guard out of guarding. There are 4
   `server.json` to 0.2.0. Rebuild `.mcpb` and republish per AGENTS.md "Release & MCP Registry Publish".
 - **Acceptance:**
   - [x] `curl` MCP registry API → `io.github.Bharath-code/regressguard` shows 0.2.0.
-  - [ ] Cold-start e2e (per `docs/e2e-testing-guide.md`) passes on the released binary, not a local build.
+  - [x] Cold-start e2e (per `docs/e2e-testing-guide.md`) passes on the released binary, not a local build. (2026-10-01: v0.2.0 darwin/arm64, checksum-verified, `demo/demo.sh` exit 0. It still showed the silent stale-baseline refresh, fixed on main post-release, so it ships in the next release.)
   - [x] `grep -rnw 'rg' README.md docs/*.md internal/ --include='*.go' --include='*.md'` → only historical/changelog hits.
-  - [ ] The installer removes nothing the user owns. It prints one line if an old `rg` from RegressGuard is on PATH.
+  - [x] The installer removes nothing the user owns. It prints one line if an old `rg` from RegressGuard is on PATH.
 
 ---
 
