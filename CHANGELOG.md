@@ -6,6 +6,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 
 - `rg check --base <git-ref>` (and action input `base`, default `auto` on PRs): compare against the snapshot committed at the ref. A working-tree baseline that differs yields `BASELINE_CHANGED` findings and exit 1.
@@ -128,5 +130,6 @@ First public release.
   not flagged.
 - Stacks: JS/TS only (Next.js App Router, Express, Hono). Python is planned.
 
-[Unreleased]: https://github.com/Bharath-code/regressguard/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Bharath-code/regressguard/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Bharath-code/regressguard/compare/v0.1.1...v0.2.0
 [0.1.0]: https://github.com/Bharath-code/regressguard/releases/tag/v0.1.0
