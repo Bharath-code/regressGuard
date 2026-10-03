@@ -6,6 +6,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-03
+
 ### Fixed
 
 - The v0.2.3 "unchanged code" downgrade never fired in practice: it compared HEAD to the snapshot's commit, but the snapshot keeps its commit byte-stable and normal use commits the baseline, so the commits never matched. It now compares a fingerprint of the working tree (tracked and untracked files by content, excluding `.regressguard/` and `.gitignore`) with the fingerprint of the last tree whose tests passed, stored in `.regressguard/state.json`. A test that fails on code that passed before is a WARNING; any code change, new file, no git, or no prior green run stays CRITICAL. Route findings are never downgraded.
