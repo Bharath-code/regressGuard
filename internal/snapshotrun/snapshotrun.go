@@ -213,12 +213,21 @@ func Run(opts Options) (Result, error) {
 
 	captured := 0
 	skipped := 0
+	warn := ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning)
 	for _, rr := range routeResults {
 		if rr.Skipped {
 			skipped++
+			if rr.Errored {
+				_, _ = fmt.Fprintf(opts.Stderr, "%s %s %s not captured (%s). It is not protected; re-run regressguard snapshot once the server is warm.\n",
+					warn, rr.Method, rr.Path, rr.SkipReason)
+			}
 			continue
 		}
 		captured++
+		if rr.Status >= 500 {
+			_, _ = fmt.Fprintf(opts.Stderr, "%s %s %s returned %d and was baselined as an error. Checks on it only catch it changing; fix the route and re-run regressguard snapshot.\n",
+				warn, rr.Method, rr.Path, rr.Status)
+		}
 		key := snapshot.RouteKey(rr.Method, rr.Path)
 		snap.Routes[key] = snapshot.RouteRecord{
 			Method:           rr.Method,
