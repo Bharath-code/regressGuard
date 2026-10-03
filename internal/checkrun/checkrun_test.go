@@ -1161,7 +1161,6 @@ func TestRun_base_noSnapshotAtRef(t *testing.T) {
 	}
 }
 
-
 // --- tests failing on an unchanged tree are environmental, not regressions ---
 
 func treeFixture(t *testing.T) (dir, commit string) {
@@ -1234,6 +1233,8 @@ func TestDowngradeTestFailures(t *testing.T) {
 	})
 	if only.HasCritical || only.CriticalCount != 0 || !only.HasWarning {
 		t.Errorf("sole test finding should leave status=warning: %+v", only)
+	}
+}
 
 func TestGitChangedFiles_ignoresRegressguardOwnedFiles(t *testing.T) {
 	dir := t.TempDir()
