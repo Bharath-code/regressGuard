@@ -1160,3 +1160,78 @@ func TestRun_base_noSnapshotAtRef(t *testing.T) {
 		t.Fatalf("want actionable no-baseline error, got %v", err)
 	}
 }
+
+// --- tests failing on an unchanged tree are environmental, not regressions ---
+
+func treeFixture(t *testing.T) (dir, commit string) {
+	t.Helper()
+	dir = t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v1"), 0o644)
+	gitIn(t, dir, "init", "-q")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-qm", "base")
+	commit = snapshot.GitCommit(dir)
+	return dir, commit
+}
+
+func TestTreeMatchesSnapshot(t *testing.T) {
+	dir, commit := treeFixture(t)
+	if !treeMatchesSnapshot(dir, commit) {
+		t.Fatal("clean tree at snapshot commit should match")
+	}
+	// RegressGuard's own files and init's .gitignore edit do not count.
+	_ = os.MkdirAll(filepath.Join(dir, ".regressguard"), 0o755)
+	_ = os.WriteFile(filepath.Join(dir, ".regressguard", "snapshot.json"), []byte("{}"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".regressguard/*\n"), 0o644)
+	if !treeMatchesSnapshot(dir, commit) {
+		t.Fatal("regressguard-owned files must be ignored")
+	}
+	// An edited tracked file, or a new untracked source file, is a real change.
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v2"), 0o644)
+	if treeMatchesSnapshot(dir, commit) {
+		t.Fatal("edited file must not match")
+	}
+	gitIn(t, dir, "checkout", "--", "app.ts")
+	_ = os.WriteFile(filepath.Join(dir, "new.ts"), []byte("x"), 0o644)
+	if treeMatchesSnapshot(dir, commit) {
+		t.Fatal("untracked source file must not match")
+	}
+	_ = os.Remove(filepath.Join(dir, "new.ts"))
+	gitIn(t, dir, "commit", "-q", "--allow-empty", "-m", "later")
+	if treeMatchesSnapshot(dir, commit) {
+		t.Fatal("moved HEAD must not match")
+	}
+}
+
+func TestTreeMatchesSnapshot_failsClosed(t *testing.T) {
+	if treeMatchesSnapshot(t.TempDir(), "unknown") || treeMatchesSnapshot(t.TempDir(), "") {
+		t.Fatal("no git / unknown commit must never match")
+	}
+}
+
+func TestDowngradeTestFailures(t *testing.T) {
+	diff := engine.DiffResult{
+		Results: []engine.CheckResult{
+			{Severity: engine.SeverityCritical, Type: engine.TypeTests, Message: "Tests: 0 -> 1 failing"},
+			{Severity: engine.SeverityCritical, Type: engine.TypeStatus, Route: "GET /a", Message: "status 200 -> 500"},
+		},
+		HasCritical: true, CriticalCount: 2,
+	}
+	got := downgradeTestFailures(diff)
+	if got.Results[0].Severity != engine.SeverityWarning || !strings.Contains(got.Results[0].Message, "no source files changed") {
+		t.Errorf("test finding should become a warning with explanation: %+v", got.Results[0])
+	}
+	if got.Results[1].Severity != engine.SeverityCritical {
+		t.Error("route findings must stay critical")
+	}
+	if got.CriticalCount != 1 || got.WarningCount != 1 || !got.HasCritical || !got.HasWarning {
+		t.Errorf("counts wrong: %+v", got)
+	}
+	only := downgradeTestFailures(engine.DiffResult{
+		Results:     []engine.CheckResult{{Severity: engine.SeverityCritical, Type: engine.TypeTests}},
+		HasCritical: true, CriticalCount: 1,
+	})
+	if only.HasCritical || only.CriticalCount != 0 || !only.HasWarning {
+		t.Errorf("sole test finding should leave status=warning: %+v", only)
+	}
+}
