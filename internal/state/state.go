@@ -16,6 +16,8 @@ type State struct {
 	HookNudgeShown bool `json:"hookNudgeShown,omitempty"`
 	CheckStreak    int  `json:"checkStreak,omitempty"`
 	FirstPassShown bool `json:"firstPassShown,omitempty"`
+	// GreenTree is the TreeFingerprint of the last tree whose test suite passed.
+	GreenTree string `json:"greenTree,omitempty"`
 }
 
 // Path returns the absolute path to state.json given a project root.
