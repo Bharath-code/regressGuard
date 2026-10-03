@@ -1163,52 +1163,6 @@ func TestRun_base_noSnapshotAtRef(t *testing.T) {
 
 // --- tests failing on an unchanged tree are environmental, not regressions ---
 
-func treeFixture(t *testing.T) (dir, commit string) {
-	t.Helper()
-	dir = t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v1"), 0o644)
-	gitIn(t, dir, "init", "-q")
-	gitIn(t, dir, "add", "-A")
-	gitIn(t, dir, "commit", "-qm", "base")
-	commit = snapshot.GitCommit(dir)
-	return dir, commit
-}
-
-func TestTreeMatchesSnapshot(t *testing.T) {
-	dir, commit := treeFixture(t)
-	if !treeMatchesSnapshot(dir, commit) {
-		t.Fatal("clean tree at snapshot commit should match")
-	}
-	// RegressGuard's own files and init's .gitignore edit do not count.
-	_ = os.MkdirAll(filepath.Join(dir, ".regressguard"), 0o755)
-	_ = os.WriteFile(filepath.Join(dir, ".regressguard", "snapshot.json"), []byte("{}"), 0o644)
-	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".regressguard/*\n"), 0o644)
-	if !treeMatchesSnapshot(dir, commit) {
-		t.Fatal("regressguard-owned files must be ignored")
-	}
-	// An edited tracked file, or a new untracked source file, is a real change.
-	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v2"), 0o644)
-	if treeMatchesSnapshot(dir, commit) {
-		t.Fatal("edited file must not match")
-	}
-	gitIn(t, dir, "checkout", "--", "app.ts")
-	_ = os.WriteFile(filepath.Join(dir, "new.ts"), []byte("x"), 0o644)
-	if treeMatchesSnapshot(dir, commit) {
-		t.Fatal("untracked source file must not match")
-	}
-	_ = os.Remove(filepath.Join(dir, "new.ts"))
-	gitIn(t, dir, "commit", "-q", "--allow-empty", "-m", "later")
-	if treeMatchesSnapshot(dir, commit) {
-		t.Fatal("moved HEAD must not match")
-	}
-}
-
-func TestTreeMatchesSnapshot_failsClosed(t *testing.T) {
-	if treeMatchesSnapshot(t.TempDir(), "unknown") || treeMatchesSnapshot(t.TempDir(), "") {
-		t.Fatal("no git / unknown commit must never match")
-	}
-}
-
 func TestDowngradeTestFailures(t *testing.T) {
 	diff := engine.DiffResult{
 		Results: []engine.CheckResult{
@@ -1218,7 +1172,7 @@ func TestDowngradeTestFailures(t *testing.T) {
 		HasCritical: true, CriticalCount: 2,
 	}
 	got := downgradeTestFailures(diff)
-	if got.Results[0].Severity != engine.SeverityWarning || !strings.Contains(got.Results[0].Message, "no source files changed") {
+	if got.Results[0].Severity != engine.SeverityWarning || !strings.Contains(got.Results[0].Message, "passed the tests before") {
 		t.Errorf("test finding should become a warning with explanation: %+v", got.Results[0])
 	}
 	if got.Results[1].Severity != engine.SeverityCritical {
@@ -1249,5 +1203,96 @@ func TestGitChangedFiles_ignoresRegressguardOwnedFiles(t *testing.T) {
 	got := gitChangedFiles(dir, commit)
 	if len(got) != 1 || got[0] != "app.ts" {
 		t.Errorf("want only app.ts, got %v", got)
+	}
+}
+
+// toggleScript is a test command that fails while <toggleDir>/FAIL exists. It
+// lives outside the project so flipping it never changes the project tree.
+func toggleScript(t *testing.T) (cmd, toggleDir string) {
+	t.Helper()
+	toggleDir = t.TempDir()
+	script := filepath.Join(toggleDir, "t.sh")
+	body := "if [ -f " + filepath.Join(toggleDir, "FAIL") + " ]; then echo 'Tests: 1 failed, 1 passed, 2 total'; exit 1; fi\necho 'Tests: 2 passed, 2 total'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return "sh " + script, toggleDir
+}
+
+func greenTreeProject(t *testing.T) (dir, toggleDir string) {
+	t.Helper()
+	dir = t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v1"), 0o644)
+	gitIn(t, dir, "init", "-q")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-qm", "base")
+	cmd, toggleDir := toggleScript(t)
+	writeCfg(t, dir, config.Config{Version: 1, TestCommand: cmd, ServerURL: "http://127.0.0.1:1"})
+	writeSnap(t, dir, snapshot.Snapshot{
+		Version: 1, CreatedAt: time.Now(),
+		Tests:  snapshot.TestSummary{Passed: 2},
+		Routes: map[string]snapshot.RouteRecord{},
+	})
+	return dir, toggleDir
+}
+
+func runCheck(t *testing.T, dir string) Result {
+	t.Helper()
+	var out, errb bytes.Buffer
+	res, err := Run(Options{ProjectRoot: dir, Stdout: &out, Stderr: &errb})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	return res
+}
+
+func TestRun_testFailureOnPreviouslyGreenTreeIsWarning(t *testing.T) {
+	dir, toggle := greenTreeProject(t)
+	if res := runCheck(t, dir); res.Status == "critical" {
+		t.Fatalf("baseline run should not be critical: %+v", res)
+	}
+	_ = os.WriteFile(filepath.Join(toggle, "FAIL"), nil, 0o644)
+	res := runCheck(t, dir)
+	if res.Status != "warning" {
+		t.Fatalf("same tree that passed before now fails tests: want warning, got %q: %+v", res.Status, res.Results)
+	}
+}
+
+func TestRun_testFailureAfterCodeChangeStaysCritical(t *testing.T) {
+	dir, toggle := greenTreeProject(t)
+	runCheck(t, dir)
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v2"), 0o644)
+	_ = os.WriteFile(filepath.Join(toggle, "FAIL"), nil, 0o644)
+	if res := runCheck(t, dir); res.Status != "critical" {
+		t.Fatalf("edited code + failing tests must be critical, got %q", res.Status)
+	}
+	// A new untracked source file is a change too.
+	dir2, toggle2 := greenTreeProject(t)
+	runCheck(t, dir2)
+	_ = os.WriteFile(filepath.Join(dir2, "new.ts"), []byte("x"), 0o644)
+	_ = os.WriteFile(filepath.Join(toggle2, "FAIL"), nil, 0o644)
+	if res := runCheck(t, dir2); res.Status != "critical" {
+		t.Fatalf("new file + failing tests must be critical, got %q", res.Status)
+	}
+}
+
+func TestRun_testFailureWithNoGreenHistoryStaysCritical(t *testing.T) {
+	dir, toggle := greenTreeProject(t)
+	_ = os.WriteFile(filepath.Join(toggle, "FAIL"), nil, 0o644)
+	if res := runCheck(t, dir); res.Status != "critical" {
+		t.Fatalf("no prior green run: must fail closed, got %q", res.Status)
+	}
+}
+
+func TestRun_greenTreeSurvivesCommitOfBaseline(t *testing.T) {
+	dir, toggle := greenTreeProject(t)
+	runCheck(t, dir)
+	// Normal workflow: init edits .gitignore, the baseline gets committed.
+	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".regressguard/*\n!.regressguard/snapshot.json\n"), 0o644)
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-qm", "add baseline")
+	_ = os.WriteFile(filepath.Join(toggle, "FAIL"), nil, 0o644)
+	if res := runCheck(t, dir); res.Status != "warning" {
+		t.Fatalf("committing the baseline must not defeat the green-tree match, got %q", res.Status)
 	}
 }

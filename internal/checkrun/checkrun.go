@@ -274,6 +274,14 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
+	treeFP := state.TreeFingerprint(opts.ProjectRoot)
+	st := state.Load(opts.ProjectRoot)
+	prevGreenTree := st.GreenTree
+	if testResult.Failed == 0 && treeFP != "" && st.GreenTree != treeFP {
+		st.GreenTree = treeFP
+		_ = state.Save(opts.ProjectRoot, st)
+	}
+
 	var routeSpinner *ui.Spinner
 	var routeProgress *ui.RouteProgress
 	if showSpinner && ui.AnimationsEnabled() && len(routes) >= 4 {
@@ -388,7 +396,10 @@ func Run(opts Options) (Result, error) {
 		diff.HasCritical = true
 	}
 
-	if hasTestFailure(diff) && treeMatchesSnapshot(opts.ProjectRoot, snap.GitCommit) {
+	// Tests failing on the exact tree that passed before is environmental
+	// (flaky, load, port race), not something an agent changed. Unknown
+	// fingerprint or no green history keeps the failure critical.
+	if hasTestFailure(diff) && treeFP != "" && treeFP == prevGreenTree {
 		diff = downgradeTestFailures(diff)
 	}
 
@@ -542,36 +553,6 @@ func hasTestFailure(diff engine.DiffResult) bool {
 	return false
 }
 
-// treeMatchesSnapshot reports whether the working tree is exactly the code the
-// baseline was recorded on: HEAD is the snapshot commit and nothing but
-// RegressGuard's own files (.regressguard/, init's .gitignore edit) differs,
-// untracked files included. Any doubt (no git, unknown commit) returns false,
-// so the caller keeps failing closed.
-func treeMatchesSnapshot(root, commit string) bool {
-	if commit == "" || commit == "unknown" {
-		return false
-	}
-	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
-	if err != nil || !strings.HasPrefix(strings.TrimSpace(string(head)), commit) {
-		return false
-	}
-	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").Output()
-	if err != nil {
-		return false
-	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if len(line) < 4 {
-			continue
-		}
-		path := strings.TrimSpace(line[3:])
-		if path == ".gitignore" || strings.HasPrefix(path, ".regressguard/") {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
 // downgradeTestFailures turns critical test findings into warnings. Callers
 // must only use it when the code is unchanged since the baseline: a test that
 // newly fails on identical code is environmental (flaky, port race, load),
@@ -585,7 +566,7 @@ func downgradeTestFailures(diff engine.DiffResult) engine.DiffResult {
 			continue
 		}
 		diff.Results[i].Severity = engine.SeverityWarning
-		diff.Results[i].Message += " (no source files changed since the baseline, so this is likely a flaky or environment-dependent test)"
+		diff.Results[i].Message += " (this exact code passed the tests before, so this is likely a flaky or environment-dependent test)"
 		diff.CriticalCount--
 		diff.WarningCount++
 		diff.HasWarning = true

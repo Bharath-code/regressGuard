@@ -132,6 +132,13 @@ func Run(opts Options) (Result, error) {
 			MoreContext: "regressguard snapshot --help",
 		}
 	}
+	if testResult.Failed == 0 {
+		if fp := state.TreeFingerprint(opts.ProjectRoot); fp != "" {
+			st := state.Load(opts.ProjectRoot)
+			st.GreenTree = fp
+			_ = state.Save(opts.ProjectRoot, st)
+		}
+	}
 	snap.Tests = snapshot.TestSummary{
 		Passed:      testResult.Passed,
 		Failed:      testResult.Failed,
