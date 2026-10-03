@@ -606,7 +606,9 @@ func gitChangedFiles(root, sinceCommit string) []string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var files []string
 	for _, l := range lines {
-		if l != "" {
+		// .gitignore is edited by regressguard init itself and never explains a
+		// regression; listing it sends the agent after a red herring.
+		if l != "" && l != ".gitignore" && !strings.HasPrefix(l, ".regressguard/") {
 			files = append(files, l)
 		}
 	}
