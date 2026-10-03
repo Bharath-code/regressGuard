@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Bharath-code/regressguard/internal/config"
+	"github.com/Bharath-code/regressguard/internal/engine"
 	"github.com/Bharath-code/regressguard/internal/failures"
 	"github.com/Bharath-code/regressguard/internal/snapshot"
 )
@@ -648,5 +650,55 @@ func TestRun_warnsWhenRouteNotCapturedAfterError(t *testing.T) {
 	}, []config.Route{{Method: "GET", Path: "/api/flaky"}})
 	if !strings.Contains(out, "GET /api/flaky") || !strings.Contains(out, "not captured") {
 		t.Errorf("want a not-captured warning for GET /api/flaky, got stderr:\n%s", out)
+	}
+}
+
+func TestRun_warmUpCapturesColdRoute(t *testing.T) {
+	oldWarm, oldHit := warmupTimeout, routeHitTimeout
+	warmupTimeout, routeHitTimeout = 2*time.Second, 100*time.Millisecond
+	defer func() { warmupTimeout, routeHitTimeout = oldWarm, oldHit }()
+
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&calls, 1) <= 2 {
+			time.Sleep(300 * time.Millisecond) // cold compile, slower than the route timeout
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	cfg := config.Config{Version: 1, TestCommand: makeTestScript(t, dir, 1, 0), ServerURL: srv.URL,
+		Routes: []config.Route{{Method: "GET", Path: "/api/search"}}}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if _, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := snapshot.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := snap.Routes[snapshot.RouteKey("GET", "/api/search")]; !ok {
+		t.Errorf("cold route should be captured after warm-up; stderr:\n%s", stderr.String())
+	}
+}
+
+func TestSkipDetail(t *testing.T) {
+	got := skipDetail([]engine.RouteResult{
+		{Skipped: true, Errored: true},
+		{Skipped: true, SkipReason: "body required — add body"},
+		{Skipped: true, SkipReason: "marked skip in config"},
+		{},
+	})
+	for _, want := range []string{"1 failed to respond", "1 need a body in config", "1 marked skip"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("skipDetail %q missing %q", got, want)
+		}
+	}
+	if skipDetail([]engine.RouteResult{{}}) != "" {
+		t.Error("no skips should give empty detail")
 	}
 }

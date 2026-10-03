@@ -296,3 +296,27 @@ func TestHitRoutes_persistentFailureStaysErrored(t *testing.T) {
 		t.Fatalf("want errored skip, got %+v", res[0])
 	}
 }
+
+func TestWarmUp_getOnlyAndToleratesSlowRoute(t *testing.T) {
+	var gets, posts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			atomic.AddInt32(&gets, 1)
+			time.Sleep(200 * time.Millisecond)
+		} else {
+			atomic.AddInt32(&posts, 1)
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	routes := []config.Route{
+		{Method: "GET", Path: "/a"},
+		{Method: "POST", Path: "/b"},
+		{Method: "GET", Path: "/c", Skip: true},
+	}
+	WarmUp(routes, HitOptions{ServerURL: srv.URL}, 2*time.Second)
+	if atomic.LoadInt32(&gets) != 1 || atomic.LoadInt32(&posts) != 0 {
+		t.Errorf("want 1 GET and 0 POST, got gets=%d posts=%d", gets, posts)
+	}
+}
