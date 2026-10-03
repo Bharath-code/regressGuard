@@ -388,6 +388,10 @@ func Run(opts Options) (Result, error) {
 		diff.HasCritical = true
 	}
 
+	if hasTestFailure(diff) && treeMatchesSnapshot(opts.ProjectRoot, snap.GitCommit) {
+		diff = downgradeTestFailures(diff)
+	}
+
 	status := statusFromDiff(diff)
 	gitFiles := gitChangedFiles(opts.ProjectRoot, snap.GitCommit)
 	findings := make([]CheckFinding, 0, len(diff.Results))
@@ -527,6 +531,67 @@ func loadSnapshot(root string) (snapshot.Snapshot, error) {
 		}
 	}
 	return snap, nil
+}
+
+func hasTestFailure(diff engine.DiffResult) bool {
+	for _, r := range diff.Results {
+		if r.Type == engine.TypeTests && r.Severity == engine.SeverityCritical {
+			return true
+		}
+	}
+	return false
+}
+
+// treeMatchesSnapshot reports whether the working tree is exactly the code the
+// baseline was recorded on: HEAD is the snapshot commit and nothing but
+// RegressGuard's own files (.regressguard/, init's .gitignore edit) differs,
+// untracked files included. Any doubt (no git, unknown commit) returns false,
+// so the caller keeps failing closed.
+func treeMatchesSnapshot(root, commit string) bool {
+	if commit == "" || commit == "unknown" {
+		return false
+	}
+	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil || !strings.HasPrefix(strings.TrimSpace(string(head)), commit) {
+		return false
+	}
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").Output()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		path := strings.TrimSpace(line[3:])
+		if path == ".gitignore" || strings.HasPrefix(path, ".regressguard/") {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// downgradeTestFailures turns critical test findings into warnings. Callers
+// must only use it when the code is unchanged since the baseline: a test that
+// newly fails on identical code is environmental (flaky, port race, load),
+// not something an agent broke. Route findings are never touched.
+func downgradeTestFailures(diff engine.DiffResult) engine.DiffResult {
+	results := make([]engine.CheckResult, len(diff.Results))
+	copy(results, diff.Results)
+	diff.Results = results
+	for i, r := range diff.Results {
+		if r.Type != engine.TypeTests || r.Severity != engine.SeverityCritical {
+			continue
+		}
+		diff.Results[i].Severity = engine.SeverityWarning
+		diff.Results[i].Message += " (no source files changed since the baseline, so this is likely a flaky or environment-dependent test)"
+		diff.CriticalCount--
+		diff.WarningCount++
+		diff.HasWarning = true
+	}
+	diff.HasCritical = diff.CriticalCount > 0
+	return diff
 }
 
 func gitChangedFiles(root, sinceCommit string) []string {

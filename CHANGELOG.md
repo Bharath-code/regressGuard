@@ -6,6 +6,10 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A newly failing test is now a WARNING, not CRITICAL, when the working tree is exactly the code the baseline was recorded on (HEAD is the snapshot commit and nothing but `.regressguard/` and `.gitignore` differs, untracked files included). Failing tests on identical code are flaky or environmental; the T3.1 re-run produced 4 false positives in 10 checks under CPU load even after retries. Any edit, new file, new commit, missing git, or unknown snapshot commit keeps the failure CRITICAL, and route findings are never downgraded.
+
 ## [0.2.2] - 2026-10-03
 
 ### Fixed
