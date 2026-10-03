@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -181,5 +184,55 @@ func TestRunTestsEmptyCommandSkipsTests(t *testing.T) {
 	}
 	if result.Passed != 0 || result.Failed != 0 {
 		t.Fatalf("result = %#v, want zero", result)
+	}
+}
+
+// flakyScript writes a test command that fails on its first `failRuns` runs
+// (tracked via a counter file) and passes afterwards.
+func flakyScript(t *testing.T, failRuns int) (dir, cmd string) {
+	t.Helper()
+	dir = t.TempDir()
+	script := fmt.Sprintf(`n=$(cat count 2>/dev/null || echo 0)
+n=$((n+1))
+echo $n > count
+if [ $n -le %d ]; then
+  echo "Tests: 1 failed, 1 passed, 2 total"
+  exit 1
+fi
+echo "Tests: 2 passed, 2 total"
+`, failRuns)
+	if err := os.WriteFile(filepath.Join(dir, "t.sh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir, "sh t.sh"
+}
+
+func TestRunTestsWithRetry_flakyPassesOnRetry(t *testing.T) {
+	dir, cmd := flakyScript(t, 1)
+	res, err := RunTestsWithRetry(cmd, dir, nil, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 0 || !res.Flaky || res.Attempts != 2 {
+		t.Errorf("want pass+flaky after 2 attempts, got failed=%d flaky=%v attempts=%d", res.Failed, res.Flaky, res.Attempts)
+	}
+}
+
+func TestRunTestsWithRetry_deterministicFailureStillFails(t *testing.T) {
+	dir, cmd := flakyScript(t, 99)
+	res, err := RunTestsWithRetry(cmd, dir, nil, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed == 0 || res.Flaky || res.Attempts != 3 {
+		t.Errorf("want persistent failure after 3 attempts, got failed=%d flaky=%v attempts=%d", res.Failed, res.Flaky, res.Attempts)
+	}
+}
+
+func TestRunTestsWithRetry_noRetryWhenPassing(t *testing.T) {
+	dir, cmd := flakyScript(t, 0)
+	res, _ := RunTestsWithRetry(cmd, dir, nil, 2)
+	if res.Attempts != 1 || res.Flaky {
+		t.Errorf("want single clean attempt, got attempts=%d flaky=%v", res.Attempts, res.Flaky)
 	}
 }

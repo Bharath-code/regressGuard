@@ -252,7 +252,7 @@ func Run(opts Options) (Result, error) {
 	if opts.Verbose {
 		testProgressWriter = opts.Stderr
 	}
-	testResult, testErr := engine.RunTests(cfg.TestCommand, opts.ProjectRoot, testProgressWriter)
+	testResult, testErr := engine.RunTestsWithRetry(cfg.TestCommand, opts.ProjectRoot, testProgressWriter, engine.DefaultTestRetries)
 	if testSpinner != nil {
 		if testErr != nil {
 			testSpinner.StopFailed("Tests failed")
@@ -260,6 +260,10 @@ func Run(opts Options) (Result, error) {
 			testLine := fmt.Sprintf("%-10s %d passed, %d failed", "Tests", testResult.Passed, testResult.Failed)
 			testSpinner.StopSuccess(testLine)
 		}
+	}
+	if testErr == nil && testResult.Flaky {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Tests failed, then passed on attempt %d: flaky tests detected. Fix them; flaky tests weaken every check.\n",
+			ui.Paint(opts.Stderr, ui.ColorMuted, ui.SymbolInfo), testResult.Attempts)
 	}
 	if testErr != nil {
 		return Result{}, failures.Actionable{

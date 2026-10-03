@@ -8,6 +8,8 @@ versioning follows [SemVer](https://semver.org/).
 
 ### Fixed
 
+- Flaky tests no longer block commits. `check` and `snapshot` rerun a failing test suite up to 2 more times; a suite that fails then passes is reported as flaky (note on stderr) instead of as a critical regression. A suite that fails every attempt still blocks. Found by the T3.1 re-run, where a repo's port-race test produced 2 false positives in 3 checks. Cost: a genuinely failing suite now runs 3 times before the verdict.
+- `snapshot` warns when the baseline is recorded with failing tests, since later failures in them cannot count as regressions.
 - `regressguard init` no longer fails on repos without a test script when API routes were discovered. Tests are skipped and only route contracts are checked; init prints that. With no tests and no routes it still fails, with a clearer message.
 - Next.js route discovery now finds `route.tsx/.js/.jsx/.mjs/.mts` files and handlers exported as `export { handler as GET, handler as POST }` or `export const { POST } = factory()`.
 - Next.js projects with `pages/` and no `app/` are detected as `nextjs-pages-router` instead of `nextjs-app-router`. Route discovery for the pages router is still not supported.

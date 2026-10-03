@@ -23,6 +23,11 @@ type TestResult struct {
 	// parseable (jest/vitest/bun markers, go test). Best-effort: may be empty
 	// even when Failed > 0, in which case callers fall back to count comparison.
 	FailedTests []string
+	// Attempts is how many times the suite ran (1 + retries used).
+	Attempts int
+	// Flaky is true when an early attempt failed but a retry passed. The
+	// returned counts are those of the passing attempt.
+	Flaky bool
 	// Raw is the combined stdout+stderr output, useful for --verbose.
 	Raw string
 }
@@ -46,6 +51,29 @@ var (
 	reViFailBlock = regexp.MustCompile(`^\s*FAIL\s+(\S+ > .+?)\s*$`)
 	reANSI        = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 )
+
+// DefaultTestRetries is how many times check/snapshot rerun a failing suite
+// before treating the failure as real.
+const DefaultTestRetries = 2
+
+// RunTestsWithRetry runs the suite and, while it reports failures, reruns it up
+// to retries more times. A regression fails every attempt; a flaky test (port
+// race, startup sleep, load) usually does not. If a retry passes, the passing
+// result is returned with Flaky set. If every attempt fails, the last failing
+// result is returned. Errors (timeout, bad command) are returned immediately.
+func RunTestsWithRetry(testCommand, workDir string, progressWriter io.Writer, retries int) (TestResult, error) {
+	var res TestResult
+	for attempt := 1; attempt <= retries+1; attempt++ {
+		var err error
+		res, err = RunTests(testCommand, workDir, progressWriter)
+		res.Attempts = attempt
+		if err != nil || res.Failed == 0 {
+			res.Flaky = attempt > 1 && err == nil
+			return res, err
+		}
+	}
+	return res, nil
+}
 
 // RunTests executes the configured test command and returns a TestResult.
 // Output is streamed to progressWriter (stderr) when non-nil.

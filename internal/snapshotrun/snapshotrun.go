@@ -106,7 +106,7 @@ func Run(opts Options) (Result, error) {
 	if opts.Verbose {
 		testProgressWriter = opts.Stderr
 	}
-	testResult, testErr := engine.RunTests(cfg.TestCommand, opts.ProjectRoot, testProgressWriter)
+	testResult, testErr := engine.RunTestsWithRetry(cfg.TestCommand, opts.ProjectRoot, testProgressWriter, engine.DefaultTestRetries)
 	if testSpinner != nil {
 		if testErr != nil {
 			testSpinner.StopFailed("Tests failed")
@@ -114,6 +114,14 @@ func Run(opts Options) (Result, error) {
 			testLine := fmt.Sprintf("%-10s %d passed, %d failed", "Tests", testResult.Passed, testResult.Failed)
 			testSpinner.StopSuccess(testLine)
 		}
+	}
+	if testErr == nil && testResult.Flaky {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Tests failed, then passed on attempt %d: flaky tests detected. Fix them; flaky tests weaken every check.\n",
+			ui.Paint(opts.Stderr, ui.ColorMuted, ui.SymbolInfo), testResult.Attempts)
+	}
+	if testErr == nil && testResult.Failed > 0 {
+		_, _ = fmt.Fprintf(opts.Stderr, "%s Baseline recorded with %d failing test(s). Later failures in those tests will not count as regressions. Fix them and re-run regressguard snapshot.\n",
+			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), testResult.Failed)
 	}
 	if testErr != nil {
 		// Surface as actionable — test command may be misconfigured.
