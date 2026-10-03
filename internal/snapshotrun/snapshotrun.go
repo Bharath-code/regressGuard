@@ -191,6 +191,7 @@ func Run(opts Options) (Result, error) {
 			Auth:         cfg.Auth,
 			IgnoreFields: cfg.IgnoreFields,
 			Verbose:      opts.Verbose,
+			Timeout:      routeHitTimeout,
 		}
 		// Wire up live progress callback.
 		if routeProgress != nil {
@@ -204,6 +205,7 @@ func Run(opts Options) (Result, error) {
 				}
 			}
 		}
+		engine.WarmUp(routes, hitOpts, warmupTimeout)
 		routeResults = engine.HitRoutes(routes, hitOpts, routeProgressWriter)
 
 		if routeProgress != nil {
@@ -307,7 +309,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	// E3-T7: human output (Flow D).
-	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, serverDown, testResult.Duration, opts.ProjectRoot)
+	return result, writeHuman(opts.Stdout, opts.Stderr, result, captured, skipped, skipDetail(routeResults), serverDown, testResult.Duration, opts.ProjectRoot)
 }
 
 // loadConfig reads .regressguard/config.json from the project root.
@@ -329,7 +331,45 @@ func loadConfig(root string) (config.Config, error) {
 }
 
 // writeHuman renders the Flow D snapshot screen with premium components.
-func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, serverDown bool, testDuration time.Duration, projectRoot string) error {
+// warmupTimeout bounds the pre-snapshot warm-up request per route.
+// routeHitTimeout overrides the measured-request timeout (zero = engine default); tests shorten it.
+var (
+	warmupTimeout   = 30 * time.Second
+	routeHitTimeout time.Duration
+)
+
+// skipDetail explains why routes were skipped, e.g. " (1 failed to respond, 1 needs a body)",
+// so a timeout is not mistaken for an intentional skip.
+func skipDetail(results []engine.RouteResult) string {
+	var failed, body, cfgSkip int
+	for _, r := range results {
+		switch {
+		case !r.Skipped:
+		case r.Errored:
+			failed++
+		case strings.HasPrefix(r.SkipReason, "body required"):
+			body++
+		default:
+			cfgSkip++
+		}
+	}
+	var parts []string
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed to respond", failed))
+	}
+	if body > 0 {
+		parts = append(parts, fmt.Sprintf("%d need a body in config", body))
+	}
+	if cfgSkip > 0 {
+		parts = append(parts, fmt.Sprintf("%d marked skip", cfgSkip))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
+}
+
+func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, skipDetail string, serverDown bool, testDuration time.Duration, projectRoot string) error {
 	_ = stderr
 
 	lines := []string{
@@ -352,13 +392,13 @@ func writeHuman(stdout, stderr io.Writer, result Result, captured, skipped int, 
 	} else if captured == 0 {
 		routeDetail := "0 captured — API contract not protected. Add routes to .regressguard/config.json"
 		if skipped > 0 {
-			routeDetail = fmt.Sprintf("0 captured, %d skipped — API contract not protected. Add routes to .regressguard/config.json", skipped)
+			routeDetail = fmt.Sprintf("0 captured, %d skipped%s — API contract not protected. Add routes to .regressguard/config.json", skipped, skipDetail)
 		}
 		lines = append(lines, ui.ResultLine(stdout, "warn", "Routes", routeDetail))
 	} else {
 		routeDetail := fmt.Sprintf("%d captured", captured)
 		if skipped > 0 {
-			routeDetail += fmt.Sprintf(", %d skipped", skipped)
+			routeDetail += fmt.Sprintf(", %d skipped%s", skipped, skipDetail)
 		}
 		lines = append(lines, ui.ResultLine(stdout, "pass", "Routes", routeDetail))
 	}

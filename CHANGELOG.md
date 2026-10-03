@@ -9,6 +9,8 @@ versioning follows [SemVer](https://semver.org/).
 ### Fixed
 
 - A newly failing test is now a WARNING, not CRITICAL, when the working tree is exactly the code the baseline was recorded on (HEAD is the snapshot commit and nothing but `.regressguard/` and `.gitignore` differs, untracked files included). Failing tests on identical code are flaky or environmental; the T3.1 re-run produced 4 false positives in 10 checks under CPU load even after retries. Any edit, new file, new commit, missing git, or unknown snapshot commit keeps the failure CRITICAL, and route findings are never downgraded.
+- `snapshot` warms every GET route (30s timeout, results discarded) before measuring, so a Next.js dev server's first-hit compile no longer leaves routes out of the baseline (v0.2.2 still saved 0 routes on a cold `swr-site`).
+- `snapshot` explains skips: "2 skipped (1 failed to respond, 1 need a body in config)" instead of a bare count that hid timeouts.
 
 ## [0.2.2] - 2026-10-03
 

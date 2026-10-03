@@ -46,6 +46,42 @@ type RouteResult struct {
 	Body []byte
 }
 
+// WarmUp hits every GET route once with a generous timeout and discards the
+// results. Dev servers (Next.js) compile a route on first request, which can
+// outlast the normal route timeout and leave it out of the baseline. Only GET
+// is sent, so warming has no side effects beyond what HitRoutes already does.
+func WarmUp(routes []config.Route, opts HitOptions, timeout time.Duration) {
+	client := opts.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: timeout}
+	}
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	for _, route := range routes {
+		if route.Skip || route.Method != http.MethodGet {
+			continue
+		}
+		wg.Add(1)
+		go func(route config.Route) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, route.Method, buildURL(opts.ServerURL, route.Path), nil)
+			if err != nil {
+				return
+			}
+			applyAuth(req, opts.Auth)
+			if resp, err := client.Do(req); err == nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxBodyBytes))
+				resp.Body.Close()
+			}
+		}(route)
+	}
+	wg.Wait()
+}
+
 // HitOptions configures the route hitter.
 type HitOptions struct {
 	ServerURL    string
