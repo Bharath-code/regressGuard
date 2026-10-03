@@ -1235,3 +1235,19 @@ func TestDowngradeTestFailures(t *testing.T) {
 		t.Errorf("sole test finding should leave status=warning: %+v", only)
 	}
 }
+
+func TestGitChangedFiles_ignoresRegressguardOwnedFiles(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v1"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules\n"), 0o644)
+	gitIn(t, dir, "init", "-q")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-qm", "base")
+	commit := snapshot.GitCommit(dir)
+	_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules\n.regressguard/*\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "app.ts"), []byte("v2"), 0o644)
+	got := gitChangedFiles(dir, commit)
+	if len(got) != 1 || got[0] != "app.ts" {
+		t.Errorf("want only app.ts, got %v", got)
+	}
+}

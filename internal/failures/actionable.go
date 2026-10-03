@@ -43,8 +43,8 @@ func ServerUnavailable(url string) Actionable {
 func MissingTestCommand() Actionable {
 	return Actionable{
 		Title:       "regressguard init failed: nothing to protect yet.",
-		Cause:       "No test command was found and no API routes were discovered.",
-		Next:        "regressguard init --test-command \"npm test\"",
+		Cause:       "No test script in package.json and no API routes found (route discovery covers Next.js app-router route files and Express app.get/post calls). With neither, there is nothing to guard.",
+		Next:        "regressguard init --test-command \"npm test\"   (or start the dev server and add routes in .regressguard/config.json)",
 		MoreContext: "regressguard init --help",
 	}
 }

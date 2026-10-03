@@ -209,4 +209,9 @@ func TestRunStillFailsWithNoTestCommandAndNoRoutes(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure: nothing to protect")
 	}
+	for _, want := range []string{"Next.js", "Express", "--test-command"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error should mention %q so the user knows what to do:\n%s", want, err)
+		}
+	}
 }
