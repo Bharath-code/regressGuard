@@ -173,3 +173,13 @@ func TestParseTestOutput_failedNames_dedupe(t *testing.T) {
 		t.Errorf("expected deduped single name, got %v", result.FailedTests)
 	}
 }
+
+func TestRunTestsEmptyCommandSkipsTests(t *testing.T) {
+	result, err := RunTests("  ", t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("empty test command must skip, got error: %v", err)
+	}
+	if result.Passed != 0 || result.Failed != 0 {
+		t.Fatalf("result = %#v, want zero", result)
+	}
+}

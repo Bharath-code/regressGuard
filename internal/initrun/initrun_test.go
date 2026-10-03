@@ -170,3 +170,43 @@ func writeProject(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 }
+
+func TestRunAllowsNoTestCommandWhenRoutesDiscovered(t *testing.T) {
+	root := t.TempDir()
+	writeProject(t, root)
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"next":"^15.0.0"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Run(Options{
+		StartDir:  root,
+		ServerURL: "http://127.0.0.1:1",
+		Yes:       true,
+		Stdout:    bytes.NewBuffer(nil),
+		Stderr:    bytes.NewBuffer(nil),
+	})
+	if err != nil {
+		t.Fatalf("init should succeed with routes but no test command: %v", err)
+	}
+	if result.TestCommand != "" {
+		t.Fatalf("test command = %q, want empty", result.TestCommand)
+	}
+}
+
+func TestRunStillFailsWithNoTestCommandAndNoRoutes(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Run(Options{
+		StartDir:  root,
+		ServerURL: "http://127.0.0.1:1",
+		Yes:       true,
+		Stdout:    bytes.NewBuffer(nil),
+		Stderr:    bytes.NewBuffer(nil),
+	})
+	if err == nil {
+		t.Fatal("expected failure: nothing to protect")
+	}
+}

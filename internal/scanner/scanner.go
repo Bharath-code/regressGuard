@@ -140,7 +140,15 @@ func DetectTestCommand(pm string, pkg packageJSON) string {
 }
 
 func DetectFramework(root string, pkg packageJSON) string {
-	if exists(filepath.Join(root, "app", "api")) || exists(filepath.Join(root, "src", "app", "api")) || hasDependency(pkg, "next") {
+	if exists(filepath.Join(root, "app", "api")) || exists(filepath.Join(root, "src", "app", "api")) {
+		return "nextjs-app-router"
+	}
+	if hasDependency(pkg, "next") {
+		hasApp := exists(filepath.Join(root, "app")) || exists(filepath.Join(root, "src", "app"))
+		hasPages := exists(filepath.Join(root, "pages")) || exists(filepath.Join(root, "src", "pages"))
+		if hasPages && !hasApp {
+			return "nextjs-pages-router"
+		}
 		return "nextjs-app-router"
 	}
 	if hasDependency(pkg, "hono") {
@@ -159,7 +167,7 @@ func DiscoverNextAppRoutes(root string) ([]Route, error) {
 			continue
 		}
 		err := filepath.WalkDir(base, func(path string, entry os.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || filepath.Base(path) != "route.ts" {
+			if err != nil || entry.IsDir() || !isRouteFile(filepath.Base(path)) {
 				return err
 			}
 			body, err := os.ReadFile(path)
@@ -267,10 +275,33 @@ func readPackageJSON(root string) (packageJSON, error) {
 	return pkg, nil
 }
 
+var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+
+// reExportList matches `export { handler as GET, POST }` lists and
+// `export const { POST, maxDuration } = factory()` destructured exports.
+var reExportList = regexp.MustCompile(`export\s*(?:(?:const|let|var)\s*)?\{([^}]*)\}`)
+
+func isRouteFile(name string) bool {
+	switch name {
+	case "route.ts", "route.tsx", "route.js", "route.jsx", "route.mjs", "route.mts":
+		return true
+	}
+	return false
+}
+
 func exportedMethods(body string) []string {
+	reExported := map[string]bool{}
+	for _, list := range reExportList.FindAllStringSubmatch(body, -1) {
+		for _, item := range strings.Split(list[1], ",") {
+			fields := strings.Fields(item)
+			if len(fields) > 0 {
+				reExported[fields[len(fields)-1]] = true
+			}
+		}
+	}
 	methods := []string{}
-	for _, method := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
-		if strings.Contains(body, "function "+method) || strings.Contains(body, "const "+method) || strings.Contains(body, "async function "+method) {
+	for _, method := range httpMethods {
+		if reExported[method] || strings.Contains(body, "function "+method) || strings.Contains(body, "const "+method) {
 			methods = append(methods, method)
 		}
 	}

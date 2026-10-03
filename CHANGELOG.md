@@ -6,6 +6,12 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `regressguard init` no longer fails on repos without a test script when API routes were discovered. Tests are skipped and only route contracts are checked; init prints that. With no tests and no routes it still fails, with a clearer message.
+- Next.js route discovery now finds `route.tsx/.js/.jsx/.mjs/.mts` files and handlers exported as `export { handler as GET, handler as POST }` or `export const { POST } = factory()`.
+- Next.js projects with `pages/` and no `app/` are detected as `nextjs-pages-router` instead of `nextjs-app-router`. Route discovery for the pages router is still not supported.
+
 ## [0.2.1] - 2026-10-01
 
 ### Fixed

@@ -54,7 +54,7 @@ func Run(opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, failures.ProjectRootMissing()
 	}
-	if detected.TestCommand == "" {
+	if detected.TestCommand == "" && len(detected.Routes) == 0 {
 		return Result{}, failures.MissingTestCommand()
 	}
 
@@ -325,7 +325,7 @@ func writeHuman(opts Options, result Result, compact bool) error {
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Found project root: " + ui.Paint(out, ui.ColorMuted, result.ProjectRoot),
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected package manager: " + result.PackageManager,
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected framework: " + result.Framework,
-		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, result.TestCommand),
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, testCommandLabel(result.TestCommand)),
 	}
 	if result.ServerReachable {
 		lines = append(lines, ui.Paint(out, ui.ColorOK, ui.SymbolPass)+" Dev server reachable: "+ui.Paint(out, ui.ColorInfo, result.ServerURL))
@@ -350,7 +350,7 @@ func writeInteractiveDetection(opts Options, detected scanner.Detection, serverU
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Found project root: " + ui.Paint(out, ui.ColorMuted, detected.Root),
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected package manager: " + detected.PackageManager,
 		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected framework: " + detected.Framework,
-		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, detected.TestCommand),
+		ui.Paint(out, ui.ColorOK, ui.SymbolPass) + " Detected test command: " + ui.Paint(out, ui.ColorInfo, testCommandLabel(detected.TestCommand)),
 	}
 	if serverURL != "" && reachable {
 		lines = append(lines, ui.Paint(out, ui.ColorOK, ui.SymbolPass)+" Dev server reachable: "+ui.Paint(out, ui.ColorInfo, serverURL))
@@ -471,4 +471,11 @@ func offerClaudeHook(opts Options, projectRoot string) {
 		_, _ = fmt.Fprintf(opts.Stderr, "%s Claude hook install failed: %v\n",
 			ui.Paint(opts.Stderr, ui.ColorWarn, ui.SymbolWarning), err)
 	}
+}
+
+func testCommandLabel(cmd string) string {
+	if cmd == "" {
+		return "none (only route contracts will be checked; set one with --test-command)"
+	}
+	return cmd
 }
