@@ -266,3 +266,33 @@ func TestServerReachable_listeningButSlowerThanProbeWindow(t *testing.T) {
 		t.Fatal("ServerReachable = false for a listening server that is slow to answer")
 	}
 }
+
+func TestHitRoutes_retriesTransientColdStart(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			time.Sleep(400 * time.Millisecond) // cold compile: exceeds client timeout
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	opts := HitOptions{ServerURL: srv.URL, Timeout: 150 * time.Millisecond}
+	res := HitRoutes([]config.Route{{Method: "GET", Path: "/api/x"}}, opts, nil)
+	if res[0].Skipped || res[0].Status != 200 {
+		t.Fatalf("want captured 200 after retry, got skipped=%v status=%d reason=%q", res[0].Skipped, res[0].Status, res[0].SkipReason)
+	}
+}
+
+func TestHitRoutes_persistentFailureStaysErrored(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+	}))
+	defer srv.Close()
+
+	opts := HitOptions{ServerURL: srv.URL, Timeout: 50 * time.Millisecond}
+	res := HitRoutes([]config.Route{{Method: "GET", Path: "/api/x"}}, opts, nil)
+	if !res[0].Skipped || !res[0].Errored {
+		t.Fatalf("want errored skip, got %+v", res[0])
+	}
+}

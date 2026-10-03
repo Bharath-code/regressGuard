@@ -18,6 +18,7 @@ import (
 const (
 	defaultRouteTimeout = 10 * time.Second
 	serverProbeTimeout  = 500 * time.Millisecond
+	retryDelay          = 200 * time.Millisecond
 	serverProbeAttempts = 6
 	serverProbeGap      = 100 * time.Millisecond
 	maxBodyBytes        = 1 << 20 // 1 MB
@@ -147,6 +148,15 @@ func HitRoutes(routes []config.Route, opts HitOptions, progressWriter io.Writer)
 			sem <- struct{}{}        // acquire
 			defer func() { <-sem }() // release
 			results[idx] = hitRoute(client, route, opts)
+			// Cold-start tolerance: dev servers (Next.js) compile a route on
+			// first hit, which can exceed the timeout. The first attempt
+			// warmed it, so one retry usually succeeds.
+			if results[idx].Errored {
+				time.Sleep(retryDelay)
+				if retry := hitRoute(client, route, opts); !retry.Errored {
+					results[idx] = retry
+				}
+			}
 			// Notify live progress callback.
 			if opts.OnRouteComplete != nil {
 				opts.OnRouteComplete(idx, results[idx])

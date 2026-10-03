@@ -604,3 +604,49 @@ func TestGetMaxHistory(t *testing.T) {
 		})
 	}
 }
+
+func runSnapshotAgainst(t *testing.T, h http.HandlerFunc, routes []config.Route) string {
+	t.Helper()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	dir := t.TempDir()
+	cfg := config.Config{Version: 1, TestCommand: makeTestScript(t, dir, 1, 0), ServerURL: srv.URL, Routes: routes}
+	if err := config.Write(dir, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	if _, err := Run(Options{ProjectRoot: dir, Stdout: &stdout, Stderr: &stderr}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return stderr.String()
+}
+
+func TestRun_warnsWhenRouteBaselinedAt5xx(t *testing.T) {
+	out := runSnapshotAgainst(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	}, []config.Route{{Method: "GET", Path: "/api/og"}})
+	if !strings.Contains(out, "GET /api/og") || !strings.Contains(out, "500") {
+		t.Errorf("want a warning naming GET /api/og and 500, got stderr:\n%s", out)
+	}
+}
+
+func TestRun_noWarningWhenRoutesHealthy(t *testing.T) {
+	out := runSnapshotAgainst(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}, []config.Route{{Method: "GET", Path: "/api/ok"}})
+	if strings.Contains(out, "/api/ok") {
+		t.Errorf("unexpected warning for healthy route:\n%s", out)
+	}
+}
+
+func TestRun_warnsWhenRouteNotCapturedAfterError(t *testing.T) {
+	out := runSnapshotAgainst(t, func(w http.ResponseWriter, r *http.Request) {
+		hj, _ := w.(http.Hijacker)
+		conn, _, _ := hj.Hijack()
+		_ = conn.Close()
+	}, []config.Route{{Method: "GET", Path: "/api/flaky"}})
+	if !strings.Contains(out, "GET /api/flaky") || !strings.Contains(out, "not captured") {
+		t.Errorf("want a not-captured warning for GET /api/flaky, got stderr:\n%s", out)
+	}
+}
